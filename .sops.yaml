@@ -1,0 +1,38 @@
+keys:
+  - &sw_txmbp age1pavfgyp5lcdsqkwkm9qcymnf6e66pmm8pjdd6g9nu522ats0tcgq9z7v5u
+  - &sw_mbp age1wvnxk4xtv7lsa55ns3exj3ekksau6kareke78qy49x5vrwe9casqk3n3ew
+  - &server_box age168py5d2f8yp6a9vl36vq29wcc0veyhw3c4tzxfghadfm47dzufls7l3x8c
+  - &server_devm age1y0kyf60v6ef22dexualmzn988c8kj94aw8yp3c9m5az0xe7n6ucqmkyp6s
+  - &server_txcdhub age1ax29xwck20m3rm4eyssccgaa8jvwvrstc20u2u200nckuq7lpy8sguyyds
+  - &server_homelab_rn0 age1cf5xd30sh8paur03yplgpxtalsy5evq72rveg3ulhuanksjzx5cq9pzh2t
+  - &server_homelab_ccs0 age1nvnmlv3r66tamsygltar2p0r6fjrkgfx4sryzkc6rjdu93t4jcqqy3a5zl
+
+creation_rules:
+  - path_regex: secrets/homelab_txcdhub.yaml
+    key_groups:
+      - age:
+        - *sw_txmbp
+        - *sw_mbp
+        - *server_devm
+        - *server_txcdhub
+  - path_regex: secrets/homelab_box.yaml
+    key_groups:
+      - age:
+        - *sw_txmbp
+        - *sw_mbp
+        - *server_box
+  - path_regex: secrets/homelab_ccs0.yaml
+    key_groups:
+      - age:
+        - *sw_txmbp
+        - *sw_mbp
+        - *server_box
+        - *server_homelab_ccs0
+  - path_regex: secrets/homelab_rn0.yaml
+    key_groups:
+      - age:
+        - *sw_txmbp
+        - *sw_mbp
+        - *server_box
+        - *server_homelab_rn0
+
