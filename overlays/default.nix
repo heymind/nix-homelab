@@ -19,11 +19,7 @@ in {
       }
     )
     // {
-      # Common packages
-      sops = pkgs.sops;
-      ssh-to-age = pkgs.ssh-to-age;
-      nix = pkgs.nix;
-      nix-tree = pkgs.nix-tree;
+      inherit (pkgs) sops ssh-to-age nix nix-tree deploy-rs;
     };
 
   unstable-packages = final: _prev: {
@@ -32,4 +28,9 @@ in {
       config.allowUnfree = true;
     };
   };
+  deploy-rs = import ./deploy-rs.nix {
+    inherit (inputs) nixpkgs deploy-rs;
+  };
+
+
 }

@@ -42,4 +42,7 @@
   installed.aria2.ports = {
     rpc = 22023;
   };
+  installed.openlist.ports = {
+    web = 22024;
+  };
 }

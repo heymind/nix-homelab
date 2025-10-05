@@ -4,7 +4,9 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs";
-    flake-utils.url = "github:numtide/flake-utils";
+
+    deploy-rs.url = "github:serokell/deploy-rs";
+    deploy-rs.inputs.nixpkgs.follows = "nixpkgs";
     
     sops-nix.url = "github:Mic92/sops-nix";
     sops-nix.inputs.nixpkgs.follows = "nixpkgs";
@@ -13,11 +15,11 @@
     nixos-wsl.inputs.nixpkgs.follows = "nixpkgs";
     
     # Import sensitive data
-    sensitive.url = "github:heymind/sensitive";
+    sensitive.url = "git+ssh://git@github.com/heymind/sensitive.git";
     sensitive.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, flake-utils, ... } @ inputs:
+  outputs = { self, nixpkgs, nixpkgs-unstable, ... } @ inputs:
   let
     inherit (self) outputs;
     systems = [
@@ -36,10 +38,10 @@
       (import nixpkgs {
         inherit system;
         config.allowUnfree = true;
-      }).appendOverlays [
+      }).appendOverlays ([
         overlays.additions
         overlays.unstable-packages
-      ]);
+      ] ++ overlays.deploy-rs));
   in {
     inherit inputs;
     
@@ -52,19 +54,7 @@
     
     # NixOS modules for reusable services
     nixosModules = {
-      # Base module that defines the sensitive data option
-      lib.mySensitive = { lib, ... }: {
-        options.my.sensitive.data = lib.mkOption {
-          type = lib.types.attrs;
-          default = {};
-          description = "Sensitive data from external flake";
-        };
-      };
-      
-      # Generic modules
       default = import ./modules;
-      
-      # Installed service modules
       installed = import ./modules/installed;
     };
     
@@ -73,5 +63,7 @@
     
     # Utility functions
     lib = utils;
+
+      deploy = import ./deploy.nix {inherit inputs pkgs;};
   };
 }

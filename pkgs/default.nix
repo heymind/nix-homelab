@@ -1,10 +1,11 @@
 final:
   {
-    cloudflare-ddns = final.callPackage ./cloudflare-ddns.nix {};
+   
   }
   // (
     if final.stdenv.isLinux
     then {
+       cloudflare-ddns = final.callPackage ./cloudflare-ddns.nix {};
       mimic = final.callPackage ./mimic.nix {
         kernel = final.linuxKernel.packages.linux_xanmod.kernel;
       };

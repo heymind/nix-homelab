@@ -20,10 +20,23 @@ in {
 
     apiToken = mkOption {
       type = types.str;
+      default = "";
       description = lib.mdDoc ''
         Cloudflare API token with DNS edit permissions.
         Get it from: https://dash.cloudflare.com/profile/api-tokens
+        
+        Note: This will be stored in the Nix store. Use environmentFile for secrets.
       '';
+    };
+
+    environmentFile = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      description = lib.mdDoc ''
+        Environment file containing secrets (e.g., CF_API_TOKEN=xxx).
+        Recommended for secrets management (e.g., sops-nix).
+      '';
+      example = "/run/secrets/cloudflare-ddns.env";
     };
 
     zoneId = mkOption {
@@ -155,16 +168,19 @@ in {
         # Restart policy
         Restart = "on-failure";
         RestartSec = "30s";
+      } // optionalAttrs (cfg.environmentFile != null) {
+        EnvironmentFile = cfg.environmentFile;
       };
 
       environment = {
-        CF_API_TOKEN = cfg.apiToken;
         CF_ZONE_ID = cfg.zoneId;
         CF_DOMAIN = cfg.domain;
         CF_UPDATE_A = if cfg.updateA then "true" else "false";
         CF_UPDATE_AAAA = if cfg.updateAAAA then "true" else "false";
         CF_TTL = toString cfg.ttl;
         CF_PROXIED = if cfg.proxied then "true" else "false";
+      } // optionalAttrs (cfg.apiToken != "") {
+        CF_API_TOKEN = cfg.apiToken;
       } // optionalAttrs (cfg.ipv6Interface != null) {
         CF_IPV6_INTERFACE = cfg.ipv6Interface;
       };

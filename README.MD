@@ -1,0 +1,1 @@
+  NIXOS_INSTALL_BOOTLOADER=1 /nix/store/szlh9kvg82s8ymv3rx2zlasskr097bnm-activatable-nixos-system-thunk-25.05.20251001.5b5be50/bin/switch-to-configuration switch

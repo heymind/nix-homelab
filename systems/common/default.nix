@@ -5,7 +5,7 @@
   pkgs,
   ...
 }: let
-  flakeInputs = {inherit (inputs) nixpkgs nixpkgs2411 nixpkgs-unstable home-manager;};
+  flakeInputs = {inherit (inputs) nixpkgs  nixpkgs-unstable;};
 in {
   users = lib.mkIf (!(config ? wsl && config.wsl.enable)) {
     users.hey = {
@@ -48,10 +48,10 @@ in {
       nix-path = config.nix.nixPath;
       substituters = [
         "https://mirrors.ustc.edu.cn/nix-channels/store"
-        "https://nix-community.cachix.org"
+     #   "https://nix-community.cachix.org"
       ];
       extra-trusted-public-keys = [
-        "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
+  #      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
       ];
     };
 

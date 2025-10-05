@@ -8,7 +8,7 @@
   ...
 }: let
   domains = rec {
-    base = "box.hey.${sensitive.domain}";
+    base = "box.${sensitive.data.domain.homelabBase}";
     _wildcard = "*.${base}";
     jellyfin = "v.${base}";
     moviepilot = "mp.${base}";
@@ -46,7 +46,7 @@ in {
       "wireguard.key" = {
         owner = "systemd-network";
       };
-      "acme/${sensitive.domain}.env" = {};
+      "acme/${sensitive.data.domain.homelabRoot}.env" = {};
       "cloudflare.token" = {};
       "htpasswd" = {
         owner = "nginx";
@@ -173,7 +173,7 @@ in {
     enable = true;
     role = "client";
     settings = {
-      serverAddr = "tun.hey.${sensitive.domain}";
+      serverAddr = "tun.hey.${sensitive.data.domain.homelabRoot}";
       serverPort = 8443;
       transport.protocol = "wss";
       auth.method = "token";
@@ -339,7 +339,7 @@ in {
       group = config.services.nginx.group;
       extraDomainNames = [domains._wildcard];
       dnsProvider = "cloudflare";
-      environmentFile = secrets."acme/${sensitive.domain}.env".path;
+      environmentFile = secrets."acme/${sensitive.data.domain.homelabRoot}.env".path;
     };
   };
 
