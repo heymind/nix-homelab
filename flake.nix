@@ -22,6 +22,10 @@
     home-manager.url = "github:nix-community/home-manager/release-25.11";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
+    emacs-overlay.url = "github:nix-community/emacs-overlay";
+    emacs-overlay.inputs.nixpkgs.follows = "nixpkgs-unstable";
+    emacs-overlay.inputs.nixpkgs-stable.follows = "nixpkgs";
+
     # Import sensitive data
     sensitive.url = "git+ssh://git@github.com/heymind/sensitive.git";
     sensitive.inputs.nixpkgs.follows = "nixpkgs";
@@ -31,6 +35,7 @@
     self,
     nixpkgs,
     nixpkgs-unstable,
+    emacs-overlay,
     ...
   } @ inputs: let
     inherit (self) outputs;
@@ -51,14 +56,11 @@
         inherit system;
         config = {
           allowUnfree = true;
-          permittedInsecurePackages = [
-            "dotnet-sdk-6.0.428" # Required by TShock
-            "dotnet-runtime-6.0.36" # Required by TShock
-          ];
         };
       }).appendOverlays ([
           overlays.additions
           overlays.unstable-packages
+          emacs-overlay.overlay
         ]
         ++ overlays.deploy-rs));
   in {
