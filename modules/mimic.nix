@@ -52,8 +52,8 @@ with lib; let
   '';
 
   mimicPkg = pkgs.callPackage ../pkgs/mimic.nix {
-        kernel = config.boot.kernelPackages.kernel;
-      };
+    kernel = config.boot.kernelPackages.kernel;
+  };
 in {
   options.services.mimic = {
     enable = mkEnableOption "enable the Mimic service(and kernel module)";
@@ -64,7 +64,7 @@ in {
     };
   };
 
-  config = mkIf config.services.mimic.enable  {
+  config = mkIf config.services.mimic.enable {
     boot.extraModulePackages = [mimicPkg];
     environment = {
       systemPackages = [mimicPkg];

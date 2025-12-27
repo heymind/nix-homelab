@@ -4,4 +4,3 @@
     ./warpgate.nix
   ];
 }
-

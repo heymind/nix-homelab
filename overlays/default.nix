@@ -7,10 +7,9 @@
 in {
   additions = final: prev: (makePackages prev);
 
-  packages = pkgs:
-    let
-      stdenv = pkgs.stdenv;
-    in
+  packages = pkgs: let
+    stdenv = pkgs.stdenv;
+  in
     (makePackages pkgs)
     // (
       when stdenv.isDarwin
@@ -31,6 +30,4 @@ in {
   deploy-rs = import ./deploy-rs.nix {
     inherit (inputs) nixpkgs deploy-rs;
   };
-
-
 }

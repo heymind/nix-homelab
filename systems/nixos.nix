@@ -5,7 +5,7 @@
   sensitive,
   ...
 }: let
-  inherit (inputs) nixpkgs sops-nix;
+  inherit (inputs) nixpkgs sops-nix nix-darwin;
   _pkgs = pkgs;
   systemModules = [
     sops-nix.nixosModules.sops
@@ -14,6 +14,7 @@
     ./common/ports.nix
   ];
   utils = import ../common/utils.nix {inherit (nixpkgs) lib;};
+  recipes = import ./recipes {inherit (nixpkgs) lib;};
 in
   utils.scan ./. ["x86_64-linux"] ({
     system,

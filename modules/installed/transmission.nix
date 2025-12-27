@@ -13,14 +13,16 @@ in {
     ports = {
       web = mkOption {type = types.int;};
     };
-    floodUiConfig = mkOption {type = types.attrs; default = {}; };
+    floodUiConfig = mkOption {
+      type = types.attrs;
+      default = {};
+    };
     basicAuthFile = mkOption {type = with types; nullOr str;};
   };
   config = mkIf transmission.enable {
     services.transmission = {
       enable = true;
       webHome = pkgs.unstable.flood-for-transmission.overrideAttrs (oldAttrs: rec {
-
         installPhase = ''
           runHook preInstall
           cp -r public $out
@@ -33,16 +35,17 @@ in {
           runHook postInstall
         '';
       });
-      
+
       downloadDirPermissions = "775";
       openPeerPorts = true;
       performanceNetParameters = true;
       settings = {
         rpc-port = transmission.ports.web;
+        umask = 0;
+        download-dir-permissions = "0777";
         # todo: 优化参数，
         # rpc-bind-address = "0.0.0.0";
         # rpc-whitelist = "127.0.0.*,192.168.124.*";
-        
       };
     };
 

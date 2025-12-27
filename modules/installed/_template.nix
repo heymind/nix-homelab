@@ -1,16 +1,18 @@
-{ config, lib, ... }:
-with lib;
-let
+{
+  config,
+  lib,
+  ...
+}:
+with lib; let
   cfg = config.installed.example; # rename: example -> your service name
   host = config.services.nginx.virtualHosts.example; # ensure host vhost set in the host module
   exposePort = config.services.nginx.defaultSSLListenPort;
   utils = import ./_utils.nix;
-in
-{
+in {
   options.installed.example = {
     enable = mkEnableOption "";
     ports = {
-      web = mkOption { type = types.int; };
+      web = mkOption {type = types.int;};
     };
   };
 
@@ -40,5 +42,3 @@ in
     # systemd.services.example.after = [ config.systemd.services.postgresql.name ];
   };
 }
-
-

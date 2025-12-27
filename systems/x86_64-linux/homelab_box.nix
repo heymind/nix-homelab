@@ -21,335 +21,360 @@
   secrets = config.sops.secrets;
   wg = import ../common/wg.nix {inherit lib sensitive;};
   sniproxy-domains = sensitive.data.sniproxy-domains;
-in {
-  imports = [
-    (modulesPath + "/installer/scan/not-detected.nix")
-    ../common
-    {
-      services.nginx.virtualHosts.moviepilot = {
-        locations."/" = {
-          extraConfig = ''
-            resolver 10.88.0.1 valid=30s ipv6=off;
-            set $upstream http://moviepilot:3000;
-            proxy_pass $upstream;
-          '';
-          recommendedProxySettings = true;
-        };
-      };
-    }
-  ];
-  sops = {
-    defaultSopsFile = ../../secrets/homelab_box.yaml;
-    age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
-    secrets = {
-      "frpc.env" = {};
-      "wireguard.key" = {
-        owner = "systemd-network";
-      };
-      "acme/${sensitive.data.domain.homelabRoot}.env" = {};
-      "cloudflare.token" = {};
-      "htpasswd" = {
-        owner = "nginx";
-      };
-    };
-    templates = {
-      "ddns-updater-config.json".content = ''
-        {
-          "settings": [
-            {
-              "provider": "cloudflare",
-              "zone_identifier": "9b2256c376cd3586421fd815e3ac3c6c",
-              "domain": "${domains.base}",
-              "ttl": 600,
-              "ip_version":"ipv4",
-              "token": "${config.sops.placeholder."cloudflare.token"}"
-            },
-            {
-              "provider": "cloudflare",
-              "zone_identifier": "9b2256c376cd3586421fd815e3ac3c6c",
-              "domain": "${domains.base}",
-              "ttl": 600,
-              "ip_version":"ipv6",
-              "token": "${config.sops.placeholder."cloudflare.token"}"
-            }
-          ]
-        }
-      '';
-    };
+
+  user-hey-recipe = {
+    users.extraUsers.hey.extraGroups = ["audio" "podman"];
   };
-  hardware.alsa.enable = true;
-  hardware.graphics.enable = true;
-  # hardware.pulseaudio.enable = true;
-  users = {
-    users.xmy = {
+
+  user-xmy-recipe = {
+    users.users.xmy = {
       group = "xmy";
       uid = 1001;
       home = "/home/xmy";
       createHome = true;
       isNormalUser = true;
       shell = pkgs.zsh;
-
       extraGroups = ["xmy"];
     };
-    groups.xmy = {gid = 1001;};
+    users.groups.xmy = {gid = 1001;};
   };
 
-  users.extraUsers.hey.extraGroups = ["audio" "podman"];
-  environment.systemPackages = with pkgs; [
-    pueue
-    clang
-    uxplay
-    tcpdump
-    gptfdisk
-    nodejs_22
-    wireguard-tools # for vscode remote
-    cage
-    frp
-    dust
-    # kodi
-    gst_all_1.gst-plugins-good
-    gst_all_1.gst-plugins-bad
-    gst_all_1.gst-vaapi
-    gst_all_1.gstreamer
-    gst_all_1.gst-plugins-base
-    gst_all_1.gst-libav
-    gst_all_1.gst-devtools
+  base-tools-recipe = {
+    environment.systemPackages = with pkgs; [
+      # tshock
+      pueue
+      clang
+      #   uxplay
+      tcpdump
+      gptfdisk
+      nodejs_22
+      wireguard-tools # for vscode remote
+      cage
+      frp
+      dust
+      # kodi
+      gst_all_1.gst-plugins-good
+      gst_all_1.gst-plugins-bad
+      gst_all_1.gst-vaapi
+      gst_all_1.gstreamer
+      gst_all_1.gst-plugins-base
+      gst_all_1.gst-libav
+      gst_all_1.gst-devtools
+      ffmpeg
+      vips
+      patchelf
+      xorg.xeyes
+      xorg.xauth
+      radeontop
+      tdl
+      aria2
+      miniupnpc
+      python3
+      uv
+      rclone
+      google-chrome
+      file
+      opencv
+    ];
 
-    ffmpeg
-    stash
-    vips
-    patchelf
-    xorg.xeyes
-    xorg.xauth
-    radeontop
+    programs.zsh.enable = true;
+    services.openssh.settings.X11Forwarding = true;
+    networking.nameservers = ["114.114.114.114" "8.8.8.8"];
+    programs.mosh.enable = true;
+  };
 
-    tdl
-    aria2
-    miniupnpc
+  hardware-recipe = {
+    hardware.alsa.enable = true;
+    hardware.graphics.enable = true;
+    # hardware.pulseaudio.enable = true;
+  };
 
-    python3
-    uv
-    rclone
-    google-chrome
-    file
-    opencv
-  ];
-
-  services.ddns-updater = {
-    enable = true;
-    environment = {
-      CONFIG_FILEPATH = ''/run/credentials/ddns-updater.service/config.json'';
-      RESOLVER_ADDRESS = "1.1.1.1:53";
-      PERIOD = "30s";
-      PUBLICIP_FETCHERS = "http";
-      PUBLICIP_HTTP_PROVIDERS = "ifconfig,ipinfo,url:https://ip.sb";
-      PUBLICIPV4_HTTP_PROVIDERS = "url:https://myip.ipip.net,ipleak,icanhazip";
-      PUBLICIPV6_HTTP_PROVIDERS = "ipleak,icanhazip";
+  container-recipe = {
+    virtualisation.podman = {
+      enable = true;
+      dockerCompat = true;
+      defaultNetwork.settings.dns_enabled = true;
     };
-  };
-  systemd.services.ddns-updater.serviceConfig.LoadCredential = "config.json:${config.sops.templates."ddns-updater-config.json".path}";
 
-  programs.zsh.enable = true;
-  services.openssh.settings.X11Forwarding = true;
-  hardware.opengl.enable = true;
-  networking.nameservers = ["114.114.114.114" "8.8.8.8"];
-  # services.smartdns = {
-  #   enable = true;
-  #   settings = {
-  #     server = ["8.8.8.8" "114.114.114.114"];
-  #     server-tls = ["1.1.1.1"];
-  #     domain-set = ["-name sniproxy -type list -file ${./installed/sniproxy-domains.txt}"];
-  #     address = ["/domain-set:sniproxy/100.32.32.11"];
-  #   };
-  # };
-  # services.resolved = {
-  #   # Disable local DNS stub listener on 127.0.0.53
-  #   extraConfig = ''
-  #     DNSStubListener=no
-  #   '';
-  # };
-  programs.mosh.enable = true;
-  services.frp = {
-    enable = true;
-    role = "client";
-    settings = {
-      serverAddr = "tun.hey.${sensitive.data.domain.homelabRoot}";
-      serverPort = 8443;
-      transport.protocol = "wss";
-      auth.method = "token";
-      auth.token = "{{ .Envs.AUTH_TOKEN }}";
-
-      proxies = [
-        {
-          name = "boxwood_ssh";
-          type = "tcp";
-          localIP = "192.168.124.10";
-          localPort = 22;
-          remotePort = 32022;
-        }
-      ];
-    };
-  };
-  systemd.services.frp.serviceConfig.EnvironmentFile = secrets."frpc.env".path;
-  # services.woodpecker-agents.agents = {
-  #   local = {
-  #     enable = true;
-  #     package = inputs.nixpkgs-unstable.legacyPackages.${pkgs.system}.woodpecker-agent;
-  #     environment = {
-  #       WOODPECKER_SERVER = "127.0.0.1:${toString config.installed.woodpecker.ports.grpc}";
-  #       WOODPECKER_BACKEND = "local";
-  #     };
-  #     environmentFile = [secrets."woodpecker.env".path];
-  #     path = [
-  #       # Needed to clone repos
-  #       pkgs.git
-  #       pkgs.git-lfs
-  #       pkgs.woodpecker-plugin-git
-  #       # Used by the runner as the default shell
-  #       pkgs.bash
-  #       # Most likely to be used in pipeline definitions
-  #       pkgs.coreutils
-  #     ];
-  #   };
-  # };
-  # installed.frps.enable = true;
-  # systemd.services.frp.serviceConfig.EnvironmentFile = secrets."frps.env".path;
-
-  # services.tailscale = {
-  #   enable = true;
-  #   openFirewall = true;
-  #   authKeyFile = secrets."tailscale.key".path;
-  #   extraUpFlags = ["--login-server=${domains.headscale}"];
-  # };
-  # services.cage.enable = true;
-  # services.displayManager.defaultSession = "cage";
-  # programs.adb.enable = true;
-  # services.cage.program = "/run/current-system/sw/bin/uxplay -fs";
-  # services.cage.user = "root";
-  # virtualisation.waydroid.enable = true;
-
-  installed.monitoring = {
-    vmagent = true;
-    vmagent-remote = wg.configs.homelab_txcdhub.address;
-    node_exporter = true;
-
-    nginx = true;
+    virtualisation.containers.enable = true;
   };
 
-  installed.jellyfin.enable = true;
-  installed.transmission = {
-    enable = true;
-    basicAuthFile = secrets."htpasswd".path;
+  zfs-recipe = {
+    boot.supportedFilesystems = ["zfs" "ntfs"];
+    boot.zfs.extraPools = ["wd16t"];
+    networking.hostId = "1249b141";
   };
 
-  services.transmission.settings = {
-    rpc-host-whitelist-enabled = true;
-    rpc-host-whitelist = domains.transmission;
-    rpc-bind-address = "0.0.0.0";
-  };
+  acme-recipe = {
+    sops.secrets."acme/${sensitive.data.domain.homelabRoot}.env" = {};
 
-  installed.aria2 = {
-    enable = true;
-    basicAuthFile = secrets."htpasswd".path;
-  };
-  # services.aria2.
-
-  # services.nginx = {
-  #   recommendedProxySettings = true;
-  #   additionalModules = [pkgs.nginxModules.dav];
-  #   virtualHosts."_" = {
-  #     locations."/videos" = {
-  #       root = "/home/hey/Workspace/funtime";
-  #       extraConfig = ''
-  #         dav_methods PUT DELETE MKCOL COPY MOVE;
-  #         dav_ext_methods PROPFIND OPTIONS;
-  #         dav_access user:rw group:rw all:r;
-
-  #         # Allow all WebDAV methods
-  #         if ($request_method = 'OPTIONS') {
-  #           add_header 'Access-Control-Allow-Origin' '*';
-  #           add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS, PUT, DELETE, COPY, MOVE, MKCOL, PROPFIND';
-  #           add_header 'Access-Control-Allow-Headers' 'Authorization,DNT,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type';
-  #           add_header 'Access-Control-Max-Age' 1728000;
-  #           add_header 'Content-Type' 'text/plain charset=UTF-8';
-  #           add_header 'Content-Length' 0;
-  #           return 204;
-  #         }
-  #       '';
-  #     };
-  #   };
-  # };
-
-  virtualisation.oci-containers.containers = {
-    moviepilot = {
-      image = "ghcr.io/jxxghp/moviepilot:2.8.0";
-      volumes = [
-        "/mnt:/mnt"
-        "/var/lib/moviepilot:/config"
-        "/var/cache/moviepilot:/moviepilot/.cache"
-      ];
-      environment = {
-        TZ = "Asia/Shanghai";
-        SUPERUSER = "hey";
-        SUPERUSER_PASSWORD = "initpass0";
-        PUID = "1000";
-        PGID = "1000";
+    security.acme = {
+      acceptTerms = true;
+      defaults.email = sensitive.data.domain.acmeEmail;
+      certs.${domains.base} = {
+        group = config.services.nginx.group;
+        extraDomainNames = [domains._wildcard];
+        dnsProvider = "cloudflare";
+        environmentFile = secrets."acme/${sensitive.data.domain.homelabRoot}.env".path;
       };
     };
   };
 
-  services.postgresql.enable = true;
+  cloudflare-ddns-recipe = {
+    sops.templates."cloudflare-ddns.env".content = ''
+      CF_API_TOKEN=${config.sops.placeholder."cloudflare.token"}
+    '';
+    sops.secrets."cloudflare.token" = {};
 
-  services.avahi.enable = true;
-  services.avahi.publish.enable = true;
-  services.avahi.openFirewall = true;
-  services.avahi.publish.userServices = true;
-
-  # We also have enabled mDNS since we're already using Avahi anyways.
-  services.avahi.nssmdns4 = true;
-  services.avahi.nssmdns6 = true;
-
-  services.mimic = {
-    enable = true;
-    interfaces.eth0 = {
+    installed.cloudflare-ddns = {
       enable = true;
-      filters = wg.mimic-filters.${hostName};
-      xdpMode = "skb";
+      domain = domains.base;
+      zoneId = "9b2256c376cd3586421fd815e3ac3c6c";
+      environmentFile = config.sops.templates."cloudflare-ddns.env".path;
+      updateA = true;
+      updateAAAA = true;
+      ipv6Interface = "eth0";
+      ttl = 600;
+      interval = "30s";
     };
   };
 
-  services.nginx = {
-    enable = true;
-    defaultSSLListenPort = 60443;
+  nginx-recipe = {
+    services.nginx = {
+      enable = true;
+      defaultSSLListenPort = 60443;
 
-    virtualHosts =
-      lib.mapAttrs (name: domain: {
-        serverName = domain;
-
-        useACMEHost = domains.base;
-        addSSL = true;
-      })
-      domains;
-  };
-
-  security.acme = {
-    acceptTerms = true;
-    defaults.email = sensitive.data.domain.acmeEmail;
-    certs.${domains.base} = {
-      group = config.services.nginx.group;
-      extraDomainNames = [domains._wildcard];
-      dnsProvider = "cloudflare";
-      environmentFile = secrets."acme/${sensitive.data.domain.homelabRoot}.env".path;
+      virtualHosts =
+        lib.mapAttrs (name: domain: {
+          serverName = domain;
+          useACMEHost = domains.base;
+          addSSL = true;
+        })
+        domains;
     };
   };
 
-  programs.nix-ld = {
-    enable = true;
-    libraries = with pkgs; [
-      libglvnd
-      glib
-    ];
+  frp-recipe = {
+    sops.secrets."frpc.env" = {};
+
+    services.frp = {
+      enable = true;
+      role = "client";
+      settings = {
+        serverAddr = "tun.hey.${sensitive.data.domain.homelabRoot}";
+        serverPort = 8443;
+        transport.protocol = "wss";
+        auth.method = "token";
+        auth.token = "{{ .Envs.AUTH_TOKEN }}";
+
+        proxies = [
+          {
+            name = "boxwood_ssh";
+            type = "tcp";
+            localIP = "192.168.124.10";
+            localPort = 22;
+            remotePort = 32022;
+          }
+        ];
+      };
+    };
+
+    systemd.services.frp.serviceConfig.EnvironmentFile = secrets."frpc.env".path;
   };
+
+  download-services-recipe = {
+    sops.secrets."htpasswd" = {
+      owner = "nginx";
+    };
+
+    installed.transmission = {
+      enable = true;
+      basicAuthFile = secrets."htpasswd".path;
+    };
+
+    services.transmission.settings = {
+      rpc-host-whitelist-enabled = true;
+      rpc-host-whitelist = domains.transmission;
+      rpc-bind-address = "0.0.0.0";
+    };
+
+    installed.aria2 = {
+      enable = true;
+      basicAuthFile = secrets."htpasswd".path;
+    };
+  };
+
+  moviepilot-recipe = {
+    services.nginx.virtualHosts.moviepilot = {
+      locations."/" = {
+        extraConfig = ''
+          resolver 10.88.0.1 valid=30s ipv6=off;
+          set $upstream http://moviepilot:3000;
+          proxy_pass $upstream;
+        '';
+        recommendedProxySettings = true;
+      };
+    };
+
+    virtualisation.oci-containers.containers = {
+      moviepilot = {
+        image = "ghcr.io/jxxghp/moviepilot:2.8.0";
+        volumes = [
+          "/mnt:/mnt"
+          "/var/lib/moviepilot:/config"
+          "/var/cache/moviepilot:/moviepilot/.cache"
+        ];
+        environment = {
+          TZ = "Asia/Shanghai";
+          SUPERUSER = "hey";
+          SUPERUSER_PASSWORD = "initpass0";
+          PUID = "1000";
+          PGID = "1000";
+          UMASK = "0000";
+        };
+      };
+    };
+  };
+
+  avahi-recipe = {
+    services.avahi.enable = true;
+    services.avahi.publish.enable = true;
+    services.avahi.openFirewall = true;
+    services.avahi.publish.userServices = true;
+    # Enable mDNS since we're already using Avahi anyways
+    services.avahi.nssmdns4 = true;
+    services.avahi.nssmdns6 = true;
+  };
+
+  monitoring-recipe = {
+    installed.monitoring = {
+      vmagent = true;
+      vmagent-remote = wg.configs.homelab_txcdhub.address;
+      node_exporter = true;
+      nginx = true;
+    };
+  };
+
+  mihomo-recipe = let
+    yamlFormat = pkgs.formats.yaml {};
+    mihomoConfig = {
+      mixed-port = 7890;
+      allow-lan = true;
+      bind-address = "*";
+      mode = "rule";
+      log-level = "info";
+      ipv6 = true;
+      external-controller = "0.0.0.0:9090";
+      external-ui = "ui"; # Relative path, will be handled by services.mihomo.webui
+      secret = "";
+
+      # TUN mode configuration
+      tun = {
+        enable = false;
+        stack = "mixed"; # or "system" or "gvisor"
+        auto-route = true;
+        auto-detect-interface = true;
+        dns-hijack = [
+          "any:53"
+        ];
+      };
+
+      profile = {
+        store-selected = true;
+        store-fake-ip = true;
+      };
+
+      dns = {
+        enable = true;
+        listen = "0.0.0.0:1053";
+        enhanced-mode = "fake-ip";
+        fake-ip-range = "198.18.0.1/16";
+        nameserver = [
+          "223.5.5.5"
+          "119.29.29.29"
+        ];
+        fallback = [
+          "8.8.8.8"
+          "1.1.1.1"
+        ];
+      };
+
+      proxy-providers = {
+        subscription = {
+          type = "http";
+          url = "https://zymsubap.kkhhyytt.cn/api/v1/client/subscribe?token=88cbf188985b1ba67b31217d1961893c";
+          interval = 86400;
+          path = "./subscription.yaml";
+          health-check = {
+            enable = true;
+            interval = 600;
+            url = "http://www.gstatic.com/generate_204";
+          };
+        };
+      };
+
+      proxy-groups = [
+        {
+          name = "PROXY";
+          type = "select";
+          use = ["subscription"];
+        }
+        {
+          name = "Auto";
+          type = "url-test";
+          use = ["subscription"];
+          url = "http://www.gstatic.com/generate_204";
+          interval = 300;
+        }
+      ];
+
+      rules = [
+        "GEOIP,CN,DIRECT"
+        "MATCH,PROXY"
+      ];
+    };
+  in {
+    services.mihomo = {
+      enable = true;
+      tunMode = true; # Enable TUN mode permissions
+      webui = pkgs.unstable.metacubexd;
+      configFile = yamlFormat.generate "mihomo-config.yaml" mihomoConfig;
+    };
+  };
+in {
+  imports = [
+    (modulesPath + "/installer/scan/not-detected.nix")
+    ../common
+    mihomo-recipe
+    user-hey-recipe
+    user-xmy-recipe
+    base-tools-recipe
+    hardware-recipe
+    container-recipe
+    zfs-recipe
+    acme-recipe
+    cloudflare-ddns-recipe
+    nginx-recipe
+    frp-recipe
+    download-services-recipe
+    moviepilot-recipe
+    avahi-recipe
+    monitoring-recipe
+  ];
+
+  sops = {
+    defaultSopsFile = ../../secrets/homelab_box.yaml;
+    age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
+    secrets = {
+      "wireguard.key" = {
+        owner = "systemd-network";
+      };
+    };
+  };
+
+  installed.jellyfin.enable = true;
+  services.postgresql.enable = true;
+  installed.immich.enable = true;
 
   time.timeZone = "Asia/Shanghai";
   boot.tmp.cleanOnBoot = true;
@@ -377,9 +402,6 @@ in {
   boot.initrd.kernelModules = [];
   boot.kernelModules = ["kvm-amd"];
   boot.extraModulePackages = [];
-  boot.supportedFilesystems = ["zfs" "ntfs"];
-  boot.zfs.extraPools = ["wd4t"];
-  networking.hostId = "1249b141";
 
   fileSystems =
     {
@@ -396,10 +418,11 @@ in {
     }
     // (let
       zfsMounts = {
-        "/mnt/store" = "wd4t/store";
-        "/mnt/backup" = "wd4t/backup";
-        "/mnt/media/personal" = "wd4t/media/personal";
-        "/mnt/media/videos" = "wd4t/media/videos";
+        "/mnt/store" = "wd16t/store";
+        "/mnt/backup" = "wd16t/backup";
+        "/mnt/media/personal" = "wd16t/media/personal";
+        "/mnt/media/videos" = "wd16t/media/videos";
+        "/var/lib/jellyfin/study" = "wd16t/media/study";
       };
     in
       lib.mapAttrs (mountPoint: device: {
@@ -408,39 +431,25 @@ in {
         options = ["nofail"];
         neededForBoot = false;
       })
-      zfsMounts);
-  # // (let
-  #   bindMounts = {
-  #     "/var/lib/transmission/Downloads" = "/mnt/store/downloads";
-  #     "/var/lib/aria2c/Downloads" = "/mnt/store/downloads";
-  #   };
-  # in
-  #   lib.mapAttrs (mountPoint: device: {
-  #     inherit device;
-  #     fsType = "none";
-  #     options = ["bind" "nofail"];
-  #     neededForBoot = false;
-  #   })
-  #   bindMounts);
+      zfsMounts)
+    // (let
+      bindMounts = {
+        "/var/lib/immich/library/admin" = "/mnt/media/personal/immich";
+        "/var/lib/transmission/Downloads/media" = "/mnt/media/videos/downloads/transmission";
+      };
+    in
+      lib.mapAttrs (mountPoint: device: {
+        inherit device;
+        fsType = "none";
+        options = ["bind" "nofail"];
+        neededForBoot = false;
+      })
+      bindMounts);
 
   swapDevices = [
     {device = "/dev/disk/by-uuid/19ef33dc-1720-4769-b45f-03968110ab01";}
   ];
-  virtualisation.podman = {
-    enable = true;
 
-    # 创建 `docker` 别名指向 `podman`
-    dockerCompat = true;
-
-    # 需要为无根容器启用
-    defaultNetwork.settings.dns_enabled = true;
-  };
-
-  # 启用容器相关服务
-  virtualisation.containers.enable = true;
-  # networking.useDHCP = lib.mkDefault true;
-  # networking.interfaces.enp1s0.useDHCP = lib.mkDefault true;
-  # networking.interfaces.wlo1.useDHCP = lib.mkDefault true;
   systemd.network = {
     enable = true;
     networks."10-eth0" = {
@@ -459,13 +468,30 @@ in {
       };
     };
   };
-  networking.hosts = {"100.32.32.11" = sniproxy-domains;};
+  # networking.hosts = {"100.32.32.11" = sniproxy-domains;};
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
   # hardware.graphics.extraPackages = [ pkgs.amf ];
   services.udev.extraRules = ''
     ATTR{address}=="b0:41:6f:0c:c7:f7", NAME="eth0"
   '';
+
+  services.mimic = {
+    enable = true;
+    interfaces.eth0 = {
+      enable = true;
+      filters = wg.mimic-filters.${hostName};
+      xdpMode = "skb";
+    };
+  };
+
+  programs.nix-ld = {
+    enable = true;
+    libraries = with pkgs; [
+      libglvnd
+      glib
+    ];
+  };
 
   nix.settings.sandbox = "relaxed";
   system.stateVersion = "25.05";

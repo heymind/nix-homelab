@@ -9,7 +9,7 @@ with lib; let
 in {
   options.installed.openlist = {
     enable = mkEnableOption "OpenList service";
-    
+
     ports = {
       web = mkOption {
         type = types.int;
@@ -38,15 +38,15 @@ in {
 
       serviceConfig = {
         Type = "simple";
-        ExecStart = "${cfg.package}/bin/openlist";
+        ExecStart = "${cfg.package}/bin/OpenList";
         Restart = "on-failure";
         RestartSec = "5s";
-        
+
         # Security hardening
         DynamicUser = true;
         StateDirectory = "openlist";
         SupplementaryGroups = "1000";
-        PrivateTmp = false;  # Use system tmp instead of private tmp
+        PrivateTmp = false; # Use system tmp instead of private tmp
         NoNewPrivileges = true;
         ProtectSystem = "strict";
         ProtectHome = true;
@@ -80,4 +80,3 @@ in {
     };
   };
 }
-

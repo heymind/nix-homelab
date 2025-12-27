@@ -25,7 +25,6 @@ in {
     (modulesPath + "/profiles/qemu-guest.nix")
     ../common
   ];
-  
 
   sops = {
     defaultSopsFile = ../../secrets/${hostName}.yaml;
@@ -36,9 +35,9 @@ in {
       };
     };
   };
-   programs.zsh.enable = true;
+  programs.zsh.enable = true;
   installed.nginx-sniproxy = {
-    enable  = true;
+    enable = true;
     listen = wg.configs.${hostName}.address;
   };
   services.nginx = {

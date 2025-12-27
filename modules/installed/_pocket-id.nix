@@ -27,8 +27,7 @@ in {
   services.nginx.virtualHosts.${domain} = {
     locations."/api".proxyPass = "http://127.0.0.1:${cfg.settings.BACKEND_PORT}";
     locations."/".proxyPass = "http://127.0.0.1:${cfg.settings.PORT}";
-     locations."/.well-known".proxyPass = "http://127.0.0.1:${cfg.settings.PORT}";
-    
+    locations."/.well-known".proxyPass = "http://127.0.0.1:${cfg.settings.PORT}";
   };
 
   services.postgresql = {

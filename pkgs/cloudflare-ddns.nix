@@ -4,11 +4,12 @@
   makeWrapper,
   bash,
   curl,
-  bind,        # provides dig
-  iproute2,    # provides ip command (Linux)
-  gnugrep,     # provides grep
-  gawk,        # provides awk
-  coreutils,   # provides cut, head, etc.
+  bind, # provides dig
+  iproute2, # provides ip command (Linux)
+  gnugrep, # provides grep
+  gawk, # provides awk
+  coreutils, # provides cut, head, etc.
+  nettools, # provides ifconfig
   ...
 }:
 stdenv.mkDerivation rec {
@@ -30,14 +31,15 @@ stdenv.mkDerivation rec {
     # Wrap the script to ensure all dependencies are in PATH
     wrapProgram $out/bin/cloudflare-ddns \
       --prefix PATH : ${lib.makeBinPath [
-        bash
-        curl
-        bind       # dig
-        iproute2   # ip
-        gnugrep    # grep
-        gawk       # awk
-        coreutils  # cut, head, etc.
-      ]}
+      bash
+      curl
+      bind # dig
+      iproute2 # ip
+      nettools # ifconfig
+      gnugrep # grep
+      gawk # awk
+      coreutils # cut, head, etc.
+    ]}
   '';
 
   meta = with lib; {
@@ -48,4 +50,3 @@ stdenv.mkDerivation rec {
     mainProgram = "cloudflare-ddns";
   };
 }
-

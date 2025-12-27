@@ -40,7 +40,6 @@ in {
     # frp
 
     ffmpeg
-    stash
     vips
     patchelf
     n-m3u8dl-re
@@ -78,18 +77,6 @@ in {
   #     xdpMode = "skb";
   #   };
   # };
-  # services.stash = {
-  #   enable = true;
-  #   settings = {
-  #     stash = [
-  #       {
-  #         Path = "/mnt/store/videos/70726f6e";
-  #         ExcludeImage = true;
-  #       }
-  #     ];
-  #   };
-  # };
-
   programs.nix-ld.enable = true;
 
   time.timeZone = "Asia/Shanghai";
@@ -124,9 +111,9 @@ in {
 
   systemd.services.wsl-init = {
     description = "Setup mount & keepalive";
-     wantedBy = [ "sysinit.target" ];
-        unitConfig = {
-      DefaultDependencies = "no";  # Critical for early start
+    wantedBy = ["sysinit.target"];
+    unitConfig = {
+      DefaultDependencies = "no"; # Critical for early start
       # After = "systemd-tmpfiles-setup.service local-fs.target";
       # Requires = "local-fs.target";
     };
@@ -137,7 +124,7 @@ in {
     serviceConfig = {
       Type = "simple";
     };
-    
+
     script = ''
       #!/bin/sh
       /mnt/c/Windows/system32/wsl.exe --mount '\\.\PHYSICALDRIVE0' --bare || true

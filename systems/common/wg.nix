@@ -5,7 +5,7 @@
 }: let
   listenPort = 50281;
   mtu = 1408;
-  
+
   # Import sensitive data
   wgData = sensitive.data.wireguard or {};
   publicKeys = wgData.publicKeys or {};

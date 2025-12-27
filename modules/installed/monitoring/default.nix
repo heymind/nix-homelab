@@ -99,7 +99,6 @@ in {
           additionalModules = with pkgs.nginxModules; [vts sts stream-sts];
           commonHttpConfig = ''vhost_traffic_status_zone;'';
           virtualHosts.vts = {
-            
             listen = [
               {
                 addr = "127.0.0.1";
@@ -116,4 +115,3 @@ in {
       })
     ];
 }
-

@@ -1,0 +1,18 @@
+{
+  sops-nix,
+  recipes,
+  pkgs,
+  ...
+}: {
+  imports =
+    [
+      sops-nix.homeManagerModules.sops
+    ]
+    ++ (with recipes; [
+      devenv-nix
+    ]);
+
+  home.username = "hey";
+  home.homeDirectory = "/Users/hey";
+  home.stateVersion = "25.11";
+}

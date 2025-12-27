@@ -128,10 +128,9 @@ in {
     virtualHosts =
       lib.mapAttrs (name: domain: {
         serverName = domain;
- 
+
         useACMEHost = domains.base;
         addSSL = true;
-        
       })
       domains;
   };

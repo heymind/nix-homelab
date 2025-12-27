@@ -36,7 +36,7 @@ in {
     };
   };
   installed.nginx-sniproxy = {
-    enable  = true;
+    enable = true;
     listen = wg.configs.${hostName}.address;
   };
   services.nginx = {

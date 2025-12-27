@@ -23,7 +23,7 @@ in {
         proxy_buffer_size 64k;
         proxy_connect_timeout 10s;
         proxy_timeout 300s;
-        proxy_socket_keepalive on; 
+        proxy_socket_keepalive on;
         server {
         isten ${it.listen}:443;
 
@@ -33,12 +33,9 @@ in {
         proxy_pass $ssl_preread_server_name:443;
       }
     '';
-    
+
     networking.firewall.interfaces.${it.interface}.allowedTCPPorts = [443];
   };
-
 }
 #  ssh txbj 'docker exec txbjng-pg-1  pg_dump -F c -d "postgresql://vaultwarden:vaultwarden@localhost/vaultwarden" ' | sudo -u vaultwarden pg_restore --clean --create -d vaultwarden
-
-
 

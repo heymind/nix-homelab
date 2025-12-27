@@ -45,4 +45,7 @@
   installed.openlist.ports = {
     web = 22024;
   };
+  installed.immich.ports = {
+    web = 22025;
+  };
 }

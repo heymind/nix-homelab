@@ -66,7 +66,7 @@
     boot.zfs.forceImportRoot = false;
     boot.zfs.forceImportAll = false;
     networking.hostId = "1009b112";
-    
+
     # ZFS configuration - no auto-mount
     services.zfs.autoSnapshot.enable = false;
     services.zfs.autoScrub.enable = false;
@@ -98,7 +98,7 @@
       domain = domains.base;
       zoneId = "9b2256c376cd3586421fd815e3ac3c6c";
       environmentFile = config.sops.templates."cloudflare-ddns.env".path;
-      updateA = true;
+      updateA = false; # Disabled: no public IPv4 address
       updateAAAA = true;
       ipv6Interface = "eth0";
       ttl = 60;
@@ -140,7 +140,7 @@
             type = "tcp";
             localIP = "127.0.0.1";
             localPort = 22;
-            remotePort = 32023;
+            remotePort = 31022;
           }
           {
             name = "thunk_https";
@@ -152,7 +152,7 @@
         ];
       };
     };
-    
+
     systemd.services.frp.serviceConfig.EnvironmentFile = secrets."frpc.env".path;
   };
 
@@ -192,14 +192,25 @@
       log-level = "info";
       ipv6 = true;
       external-controller = "0.0.0.0:9090";
-      external-ui = "${pkgs.unstable.metacubexd}/share/metacubexd";
+      external-ui = "ui"; # Relative path, will be handled by services.mihomo.webui
       secret = "";
-      
+
+      # TUN mode configuration
+      tun = {
+        enable = false;
+        stack = "mixed"; # or "system" or "gvisor"
+        auto-route = true;
+        auto-detect-interface = true;
+        dns-hijack = [
+          "any:53"
+        ];
+      };
+
       profile = {
         store-selected = true;
         store-fake-ip = true;
       };
-      
+
       dns = {
         enable = true;
         listen = "0.0.0.0:1053";
@@ -214,7 +225,7 @@
           "1.1.1.1"
         ];
       };
-      
+
       proxy-providers = {
         subscription = {
           type = "http";
@@ -228,7 +239,7 @@
           };
         };
       };
-      
+
       proxy-groups = [
         {
           name = "PROXY";
@@ -243,7 +254,7 @@
           interval = 300;
         }
       ];
-      
+
       rules = [
         "GEOIP,CN,DIRECT"
         "MATCH,PROXY"
@@ -252,6 +263,7 @@
   in {
     services.mihomo = {
       enable = true;
+      tunMode = true; # Enable TUN mode permissions
       webui = pkgs.unstable.metacubexd;
       configFile = yamlFormat.generate "mihomo-config.yaml" mihomoConfig;
     };
@@ -264,15 +276,15 @@ in {
     base-tools-recipe
     container-recipe
     zfs-recipe
-    # acme-recipe
-    # cloudflare-ddns-recipe
-    # nginx-recipe
-    # frp-recipe
-    # download-services-recipe
+    acme-recipe
+    cloudflare-ddns-recipe
+    nginx-recipe
+    frp-recipe
+    download-services-recipe
     openlist-recipe
     mihomo-recipe
   ];
-  
+
   sops = {
     defaultSopsFile = ../../secrets/homelab_thunk.yaml;
     age.sshKeyPaths = ["/etc/ssh/ssh_host_ed25519_key"];
@@ -326,8 +338,6 @@ in {
     {device = "/dev/disk/by-uuid/d8118907-ac43-4d06-92a9-11b47d74c743";}
   ];
 
-  
-
   systemd.network = {
     enable = true;
     networks."10-eth0" = {
@@ -346,11 +356,11 @@ in {
     #   };
     # };
   };
-  
+
   # networking.hosts = {"100.32.32.11" = sniproxy-domains;};
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
-  
+
   # Rename network interface to eth0
   services.udev.extraRules = ''
     ATTR{address}=="00:e0:70:c1:41:d4", NAME="eth0"

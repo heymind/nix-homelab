@@ -8,9 +8,11 @@ with lib; let
   cfg = config.installed.cloudflare-ddns;
 in {
   options.installed.cloudflare-ddns = {
-    enable = mkEnableOption "Cloudflare DDNS updater" // {
-      description = lib.mdDoc "Whether to enable Cloudflare DDNS automatic updates";
-    };
+    enable =
+      mkEnableOption "Cloudflare DDNS updater"
+      // {
+        description = lib.mdDoc "Whether to enable Cloudflare DDNS automatic updates";
+      };
 
     domain = mkOption {
       type = types.str;
@@ -24,7 +26,7 @@ in {
       description = lib.mdDoc ''
         Cloudflare API token with DNS edit permissions.
         Get it from: https://dash.cloudflare.com/profile/api-tokens
-        
+
         Note: This will be stored in the Nix store. Use environmentFile for secrets.
       '';
     };
@@ -139,51 +141,65 @@ in {
       after = ["network-online.target"];
       wants = ["network-online.target"];
 
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = "${pkgs.cloudflare-ddns}/bin/cloudflare-ddns";
-        User = cfg.user;
-        Group = cfg.group;
-        
-        # Security hardening
-        PrivateTmp = true;
-        NoNewPrivileges = true;
-        ProtectSystem = "strict";
-        ProtectHome = true;
-        ProtectKernelTunables = true;
-        ProtectKernelModules = true;
-        ProtectControlGroups = true;
-        RestrictAddressFamilies = ["AF_INET" "AF_INET6"];
-        RestrictNamespaces = true;
-        LockPersonality = true;
-        RestrictRealtime = true;
-        RestrictSUIDSGID = true;
-        ProtectClock = true;
-        
-        # Allow access to network interfaces for IPv6
-        PrivateDevices = false; # Need access to /sys/class/net
-        ProtectProc = "invisible";
-        ProcSubset = "pid";
-        
-        # Restart policy
-        Restart = "on-failure";
-        RestartSec = "30s";
-      } // optionalAttrs (cfg.environmentFile != null) {
-        EnvironmentFile = cfg.environmentFile;
-      };
+      serviceConfig =
+        {
+          Type = "oneshot";
+          ExecStart = "${pkgs.cloudflare-ddns}/bin/cloudflare-ddns";
+          User = cfg.user;
+          Group = cfg.group;
 
-      environment = {
-        CF_ZONE_ID = cfg.zoneId;
-        CF_DOMAIN = cfg.domain;
-        CF_UPDATE_A = if cfg.updateA then "true" else "false";
-        CF_UPDATE_AAAA = if cfg.updateAAAA then "true" else "false";
-        CF_TTL = toString cfg.ttl;
-        CF_PROXIED = if cfg.proxied then "true" else "false";
-      } // optionalAttrs (cfg.apiToken != "") {
-        CF_API_TOKEN = cfg.apiToken;
-      } // optionalAttrs (cfg.ipv6Interface != null) {
-        CF_IPV6_INTERFACE = cfg.ipv6Interface;
-      };
+          # Security hardening
+          PrivateTmp = true;
+          NoNewPrivileges = true;
+          ProtectSystem = "strict";
+          ProtectHome = true;
+          ProtectKernelTunables = true;
+          ProtectKernelModules = true;
+          ProtectControlGroups = true;
+          RestrictAddressFamilies = ["AF_INET" "AF_INET6" "AF_NETLINK"]; # AF_NETLINK needed for ip command
+          RestrictNamespaces = true;
+          LockPersonality = true;
+          RestrictRealtime = true;
+          RestrictSUIDSGID = true;
+          ProtectClock = true;
+
+          # Allow access to network interfaces for IPv6
+          PrivateDevices = false; # Need access to /sys/class/net
+          ProtectProc = "default"; # Changed from "invisible" to allow network info
+          ProcSubset = "all"; # Changed from "pid" to allow full /proc access
+
+          # Restart policy
+          Restart = "on-failure";
+          RestartSec = "30s";
+        }
+        // optionalAttrs (cfg.environmentFile != null) {
+          EnvironmentFile = cfg.environmentFile;
+        };
+
+      environment =
+        {
+          CF_ZONE_ID = cfg.zoneId;
+          CF_DOMAIN = cfg.domain;
+          CF_UPDATE_A =
+            if cfg.updateA
+            then "true"
+            else "false";
+          CF_UPDATE_AAAA =
+            if cfg.updateAAAA
+            then "true"
+            else "false";
+          CF_TTL = toString cfg.ttl;
+          CF_PROXIED =
+            if cfg.proxied
+            then "true"
+            else "false";
+        }
+        // optionalAttrs (cfg.apiToken != "") {
+          CF_API_TOKEN = cfg.apiToken;
+        }
+        // optionalAttrs (cfg.ipv6Interface != null) {
+          CF_IPV6_INTERFACE = cfg.ipv6Interface;
+        };
     };
 
     # Create systemd timer
@@ -202,4 +218,3 @@ in {
     };
   };
 }
-
