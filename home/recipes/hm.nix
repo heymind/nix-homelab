@@ -7,6 +7,28 @@
     programs.home-manager.enable = true;
   };
 
+  my = {
+    lib,
+    config,
+    ...
+  }: {
+    options.my.flakeRepoPath = lib.mkOption {
+      type = lib.types.str;
+      default = null;
+      example = "/Users/hey/Workspace/nix-staff/nix-homelab";
+      description = "Absolute path to the local nix-homelab flake checkout (used for out-of-store symlinks).";
+    };
+
+    config = {
+      assertions = [
+        {
+          assertion = (lib.isString config.my.flakeRepoPath) && (config.my.flakeRepoPath != "");
+          message = "Please set `my.flakeRepoPath` to an absolute path of your local nix-homelab checkout.";
+        }
+      ];
+    };
+  };
+
   sops = {
     config,
     pkgs,

@@ -1,0 +1,1217 @@
+:Properties:
+:GPTEL_MODEL: vertex_ai/gemini-3-pro-preview
+:GPTEL_BACKEND: one2x
+:GPTEL_SYSTEM: You are a large language model living in Emacs and a helpful assistant. Respond concisely.
+:END:
+#+author: Heymind
+#+title: My Emacs Configuration for 2025
+#+property: header-args:emacs-lisp :tangle config.el
+
+
+* Theming
+
+** Nano Theme
+
+#+begin_src emacs-lisp
+
+(use-package
+ nano
+ :straight (nano :type git :host github :repo "rougier/nano-emacs")
+ :config
+ (setq nano-font-family-monospaced "JetBrainsMono Nerd Font")
+ (require 'nano)
+ (setq font-lock-maximum-decoration t)
+ (setf (alist-get 'internal-border-width default-frame-alist) 12)
+
+ (defun my/sync-nano-theme-with-system (appearance)
+   (let* ((appearance-str (format "%s" appearance))
+          (system-dark?
+           (string-match-p "dark" (downcase appearance-str)))
+          ;; 确保 nano-theme-var 有值，防止未初始化报错
+          (nano-dark?
+           (string= (bound-and-true-p nano-theme-var) "dark")))
+     (unless (eq (and system-dark? t) (and nano-dark? t))
+       (nano-toggle-theme))))
+
+ (when (and (eq system-type 'darwin) window-system)
+
+   ;; 修复点：针对 Emacs Mac Port (铁路猫版)
+   ;; 原代码用 let lambda 并不稳定，改为定义一个专用的无参辅助函数
+   (when (boundp 'mac-effective-appearance-change-hook)
+     (defun my/sync-mac-port-appearance ()
+       (my/sync-nano-theme-with-system
+        (plist-get (mac-application-state) :appearance)))
+
+     (add-hook
+      'mac-effective-appearance-change-hook
+      #'my/sync-mac-port-appearance)
+     (my/sync-mac-port-appearance))
+
+   ;; 针对 Emacs Plus / NS (官方版)
+   (when (boundp 'ns-system-appearance-change-functions)
+     (add-hook
+      'ns-system-appearance-change-functions
+      #'my/sync-nano-theme-with-system))))
+#+end_src
+
+#+RESULTS:
+: t
+
+
+*** Customize Nano Modeline
+#+begin_src elisp
+(with-eval-after-load 'nano-modeline
+  (require 'nano-colors)
+  (defun my/nano-modeline-evil-component ()
+    (let* ((state evil-state)
+           (state-char (upcase (substring (symbol-name state) 0 1)))
+           (final-str (concat " " state-char " "))
+           (final-str (if (nano-modeline-vterm-mode-p) " > " final-str))
+           (colors
+            (cond
+             ((eq state 'emacs)
+              `(:foreground
+                "white"
+                :background ,(nord-color "aurora-4")))
+             ((eq state 'insert)
+              `(:foreground
+                "white"
+                :background ,(nord-color "aurora-3")))
+             ((eq state 'visual)
+              `(:foreground
+                "white"
+                :background ,(nord-color "aurora-2")))
+             ((eq state 'replace)
+              `(:foreground
+                "white"
+                :background ,(nord-color "aurora-1")))
+             (t
+              `(:foreground
+                "white"
+                :background ,(nord-color "frost-2"))))))
+      (propertize final-str 'face colors)))
+
+
+  ;; --- 2. 主函数：去噪逻辑 ---
+  (defun nano-modeline-compose (status name primary secondary)
+    "覆盖版：左侧移除**，右侧静默显示修改标记"
+    (let* ((char-width (window-font-width nil 'header-line))
+           (window (get-buffer-window (current-buffer)))
+           (space-up +0.15)
+           (space-down -0.20)
+
+           ;; --- 左侧前缀逻辑 (极简版) ---
+           (prefix
+            (cond
+             ((and (bound-and-true-p evil-local-mode)
+                   (bound-and-true-p evil-state))
+              (my/nano-modeline-evil-component))
+             ((string= status "RO"
+                    (propertize (if (window-dedicated-p)" -- " " RO ")
+                                'face 'nano-face-header-popout)))
+             ((string= status "**"
+                    (propertize (if (window-dedicated-p)" -- " " ** ")
+                                'face 'nano-face-header-critical)))
+             ((string= status "RW"
+                    (propertize (if (window-dedicated-p)" -- " " RW ")
+                                'face 'nano-face-header-faded)))
+             (t (propertize status 'face 'nano-face-header-popout))))
+  
+
+           ;; --- 中间文件名 ---
+           (left
+            (concat
+             (propertize " "
+                         'face
+                         'nano-face-header-default
+                         'display
+                         `(raise ,space-up))
+             (propertize name 'face 'nano-face-header-strong)
+             (propertize " "
+                         'face
+                         'nano-face-header-default
+                         'display
+                         `(raise ,space-down))
+             (propertize primary 'face 'nano-face-header-default)))
+
+           ;; --- 右侧逻辑 (静默修改标记) ---
+           ;; 1. 生成标记：有修改就是 "*"，没修改就是空
+           (mod-marker
+            (if (buffer-modified-p)
+                "*"
+              ""))
+
+           ;; 2. 拼接：
+           ;; 这里不再给 * 单独加 face，它会自然继承右侧整体的 faded 风格
+           (gptel-status (bound-and-true-p my/gptel-status))
+           (secondary (cond
+                       ((member gptel-status '(" Waiting..." " Typing...")) " 🤖 ")
+                       ((member gptel-status '(" Ready" nil)) secondary)
+                       (gptel-status gptel-status)
+                       (t secondary)))
+           (right (concat mod-marker " " secondary " "))
+
+           (available-width
+            (- (window-total-width) (length prefix)
+               (length left)
+               (length right)
+               (/ (window-right-divider-width) char-width)))
+           (available-width (max 1 available-width))
+           (active? (eq (selected-window) (old-selected-window)))
+           (prefix*
+            (if active?
+                prefix
+              (propertize (substring-no-properties prefix)
+                          'face
+                          'nano-face-header-default))))
+
+
+      (concat
+       prefix* left
+       (propertize (make-string available-width ?\ )
+                   'face
+                   'nano-face-header-default)
+       ;; 右侧整体统一使用 faded 颜色，实现“静默”效果
+       (propertize right
+                   'face
+                   `(:inherit
+                     nano-face-header-default
+                     :foreground ,nano-color-faded)))))
+  (eval-after-load
+      'evil (add-hook 'evil-emacs-state-entry-hook 'nano-modeline)))
+#+end_src
+
+#+RESULTS:
+| :eval | (cond ((nano-modeline-prog-mode-p) (nano-modeline-default-mode)) ((nano-modeline-message-mode-p) (nano-modeline-message-mode)) ((nano-modeline-elfeed-search-mode-p) (nano-modeline-elfeed-search-mode)) ((nano-modeline-elfeed-show-mode-p) (nano-modeline-elfeed-show-mode)) ((nano-modeline-deft-mode-p) (nano-modeline-deft-mode)) ((nano-modeline-info-mode-p) (nano-modeline-info-mode)) ((nano-modeline-calendar-mode-p) (nano-modeline-calendar-mode)) ((nano-modeline-org-capture-mode-p) (nano-modeline-org-capture-mode)) ((nano-modeline-org-agenda-mode-p) (nano-modeline-org-agenda-mode)) ((nano-modeline-org-clock-mode-p) (nano-modeline-org-clock-mode)) ((nano-modeline-term-mode-p) (nano-modeline-term-mode)) ((nano-modeline-vterm-mode-p) (nano-modeline-term-mode)) ((nano-modeline-mu4e-dashboard-mode-p) (nano-modeline-mu4e-dashboard-mode)) ((nano-modeline-mu4e-main-mode-p) (nano-modeline-mu4e-main-mode)) ((nano-modeline-mu4e-headers-mode-p) (nano-modeline-mu4e-headers-mode)) ((nano-modeline-text-mode-p) (nano-modeline-default-mode)) ((nano-modeline-pdf-view-mode-p) (nano-modeline-pdf-view-mode)) ((nano-modeline-docview-mode-p) (nano-modeline-docview-mode)) ((nano-modeline-completion-list-mode-p) (nano-modeline-completion-list-mode)) ((nano-modeline-nano-help-mode-p) (nano-modeline-nano-help-mode)) (t (nano-modeline-default-mode))) |
+
+*** Apply Nano Modeline with customized headerline
+#+begin_src elisp
+;; 1. 定义存原来的信息的变量
+(defvar-local my/nano-external-header-message nil
+  "存储被 Nano 覆盖之前的原始 header-line 信息")
+(with-eval-after-load 'nano
+  (defun nano-modeline-default-mode ()
+    "修改版：优先显示外部捕获的 header 信息"
+    (let ((buffer-name (format-mode-line "%b"))
+          (mode-name (format-mode-line "%m"))
+          (branch
+           (if (fboundp 'vc-branch)
+               (vc-branch)
+             ""))
+          (position (format-mode-line "%l:%c")))
+
+      (if my/nano-external-header-message
+          ;; 显示偷来的信息
+          (nano-modeline-compose
+           (nano-modeline-status)
+           ""
+           my/nano-external-header-message
+           (concat position "  " mode-name))
+
+        ;; 正常显示
+        (nano-modeline-compose
+         (nano-modeline-status) buffer-name
+         (if (and branch (not (string-empty-p branch)))
+             (concat "(" branch ")")
+           "")
+         (concat position "  " mode-name))))))
+;; 2. 偷梁换柱函数
+(defun my/nano-steal-header-and-fallback ()
+  "如果发现当前 buffer 有自定义 header，存下来，然后杀掉它以回滚到 Nano 全局默认值"
+  (unless (or (minibufferp) (string-prefix-p " *" (buffer-name)))
+
+    ;; 检查：当前 buffer 是否有**本地**设置的 header-line-format
+    (when (local-variable-p 'header-line-format)
+
+      ;; 1. 偷：保存内容
+      (setq my/nano-external-header-message
+            (string-trim (format-mode-line header-line-format)))
+
+     ;; 2. 杀：清除本地变量，强制 Emacs 使用全局默认值 (即 Nano)
+      (kill-local-variable 'header-line-format))))
+
+;; 3. 挂载 (加个延时，等 Org/Magit 那些慢动作做完)
+(defun my/auto-adapt-header-line-delayed ()
+  (run-with-timer 0 nil #'my/nano-steal-header-and-fallback))
+
+(add-hook
+ 'after-change-major-mode-hook #'my/auto-adapt-header-line-delayed)
+#+end_src
+
+#+RESULTS:
+| global-corfu-mode-enable-in-buffer | sis-global-context-mode-enable-in-buffer | evil-mode-enable-in-buffer | my/auto-adapt-header-line-delayed | global-eldoc-mode-enable-in-buffer | global-font-lock-mode-enable-in-buffer |
+*** Customize Emacs
+#+begin_src elisp
+(setq-default ring-bell-function 'ignore)
+#+end_src
+
+#+RESULTS:
+: ignore
+
+*** Popper
+#+begin_src elisp
+(use-package popper
+  :hook (emacs-startup . popper-mode)
+  :custom
+  (popper-reference-buffers
+   '( "\\*Org Select\\*"))
+  )
+#+end_src
+
+#+RESULTS:
+| popper-mode | #[nil ((progn (setq gc-cons-threshold (* 16 1024 1024)) (setq gc-cons-percentage 0.1)) (run-with-idle-timer 5 t #'garbage-collect)) (t)] | #[nil ((setq file-name-handler-alist file-name-handler-alist-original) (makunbound 'file-name-handler-alist-original)) (t)] |
+
+** Pluse line when switch buffer
+#+begin_src elisp
+(defun my/pluse-line (&rest _)
+  ;; (when (and (windowp window) (not (eq window (selected-window)))))
+  (pulse-momentary-highlight-one-line
+   (point) 'nano-face-header-faded))
+(advice-add 'other-window :after #'my/pluse-line)
+;(add-hook 'window-selection-change-functions #'my/pluse-line)
+#+end_src
+
+#+RESULTS:
+
+** Mac Port
+#+begin_src elisp
+
+(setq mac-frame-tabbing t)
+#+end_src
+* Editing
+** Evil Mode
+#+begin_src elisp
+(use-package
+ evil
+ :init (evil-mode 1)
+ :custom (evil-want-C-i-jump nil)
+ :config
+ (with-eval-after-load 'nano
+   (require 'nano-colors)
+
+   (setq evil-emacs-state-cursor `(,(nord-color "aurora-4") box))
+   (setq evil-insert-state-cursor `(,(nord-color "aurora-3") bar))
+   (with-eval-after-load 'sis
+     (let ((update-cursor-func
+            (lambda ()
+              (let* ((is-eng (eq sis--current 'english))
+                     (ins-color
+                      (if is-eng
+                          (nord-color "aurora-3")
+                        "green"))
+                     (emacs-color
+                      (if is-eng
+                          (nord-color "aurora-4")
+                        "tomato")))
+                (setq
+                 evil-insert-state-cursor `(,ins-color bar)
+                 evil-emacs-state-cursor `(,emacs-color box))
+
+                (set-cursor-color
+                 (if (eq evil-state 'emacs)
+                     emacs-color
+                   ins-color))))))
+
+       (add-hook 'sis-change-hook update-cursor-func)
+       (setq
+        evil-visual-state-cursor `(,(nord-color "aurora-2") box)
+        evil-replace-state-cursor `(,(nord-color "aurora-1") hbar)
+        evil-normal-state-cursor `(,(nord-color "frost-2") box))))
+   (evil-set-initial-state 'vterm-mode 'emacs)))
+(use-package evil-nerd-commenter :config (evilnc-default-hotkeys))
+#+end_src
+
+#+RESULTS:
+: t
+
+** Always using English Keyboard when enter emacs
+#+begin_src elisp
+(use-package
+ sis
+ :config
+ ;; For MacOS
+ (sis-ism-lazyman-config
+  "com.apple.keylayout.ABC" "com.apple.inputmethod.SCIM.Shuangpin")
+ ;; enable the /cursor color/ mode
+ ;;(sis-global-cursor-color-mode nil)
+ ;; enable the /respect/ mode
+ (sis-global-respect-mode t)
+ ;; enable the /context/ mode for all buffers
+ (sis-global-context-mode t))
+
+ ;(with-eval-after-load 'meow
+ ;  (add-hook 'meow-insert-exit-hook #'sis-set-english)
+ ;  (add-to-list 'sis-context-hooks 'meow-insert-enter-hook)))
+#+end_src
+
+#+RESULTS:
+: t
+** Undo Enhance with undo-fu(-session) vundo
+#+begin_src elisp
+(use-package
+ undo-fu
+ :config
+ (with-eval-after-load 'evil
+   (setq evil-undo-system 'undo-fu)
+   (with-eval-after-load 'evil
+     (define-key evil-normal-state-map (kbd "u") 'undo-fu-only-undo)
+     (define-key
+      evil-normal-state-map (kbd "C-r") 'undo-fu-only-redo))))
+#+end_src
+
+#+RESULTS:
+: t
+
+#+begin_src elisp
+(use-package
+ undo-fu-session
+ :config
+ (setq undo-fu-session-incompatible-files
+       '("/COMMIT_EDITMSG\\'" "/git-rebase-todo\\'"))
+ (global-undo-fu-session-mode))
+#+end_src
+
+#+RESULTS:
+: t
+
+#+begin_src elisp
+(use-package vundo
+  :config
+  (setq vundo-glyph-alist vundo-unicode-symbols))
+#+end_src
+
+#+RESULTS:
+: t
+
+** Backup & History
+#+begin_src elisp
+(use-package
+ backup-walker
+ :config
+ (with-eval-after-load 'evil
+   (evil-set-initial-state 'backup-worker-mode 'emacs)))
+
+(use-package
+ emacs
+ :ensure nil
+ :custom
+ (version-control t)
+ (kept-new-versions 100)
+ (kept-old-versions 100)
+ (delete-old-versions t)
+ (backup-by-copying t)
+ (vc-make-version-backup-files t)
+ (make-backup-files t)
+ (find-file-visit-truename t)
+ :config
+ ;; The folder is managed by no-littering
+ ;; (defvar my/backup-dir (expand-file-name "~/.emacs.d/backups/"))
+ ;; (unless (file-exists-p my/backup-dir)
+ ;;   (make-directory my/backup-dir))
+ ;; (setq backup-directory-alist `(("." . ,my/backup-dir)))
+ (add-hook 'before-save-hook (lambda () (setq buffer-backed-up nil)))
+
+ ;(defvar my-backup-file-size-limit (* 10 1024 1024))
+ ;(defun my-backup-enable-predicate (filename)
+ ;(and (file-exists-p filename)
+ ;(< (file-attribute-size (file-attributes filename))
+ ;my-backup-file-size-limit)))
+ ;(setq backup-enable-predicate 'my-backup-enable-predicate))
+ )
+#+end_src
+
+#+RESULTS:
+: t
+
+** Indent Bar
+#+begin_src elisp
+(use-package
+ indent-bars
+ :hook ((emacs-lisp-mode clojure-ts-mode) . indent-bars-mode)
+ :custom
+ (indent-bars-color '(highlight :face-bg t :blend 0.2))
+ (indent-bars-pattern ".")
+ (indent-bars-width-frac 0.1)
+ (indent-bars-pad-frac 0.1)
+ (indent-bars-zigzag nil)
+ (indent-bars-display-on-blank-lines t)
+ (indent-bars-treesit-support t)
+ :config
+ (with-eval-after-load 'nano
+   (require 'nano-colors)
+
+   (setq indent-bars-highlight-current-depth
+         `(:color ,(nord-color "aurora-3") :blend 50))))
+#+end_src
+
+#+RESULTS:
+| #<subr F616e6f6e796d6f75732d6c616d626461_anonymous_lambda_103> | smartparens-mode | indent-bars-mode |
+
+** Meow Mode
+#+begin_src emacs-lisp-disabled
+(use-package
+ meow
+ :custom (meow-cursor-type-insert 'bar)
+ :config
+ (defun meow-setup ()
+   (setq meow-cheatsheet-layout meow-cheatsheet-layout-qwerty)
+   (setq meow-cursor-type-insert 'box)
+   (meow-motion-define-key
+    '("j" . meow-next) '("k" . meow-prev) '("<escape>" . ignore))
+   (meow-leader-define-key
+    ;; Use SPC (0-9) for digit arguments.
+    '("1" . meow-digit-argument)
+    '("2" . meow-digit-argument)
+    '("3" . meow-digit-argument)
+    '("4" . meow-digit-argument)
+    '("5" . meow-digit-argument)
+    '("6" . meow-digit-argument)
+    '("7" . meow-digit-argument)
+    '("8" . meow-digit-argument)
+    '("9" . meow-digit-argument)
+    '("0" . meow-digit-argument)
+    '("/" . meow-keypad-describe-key)
+    '("?" . meow-cheatsheet))
+   (meow-normal-define-key
+    '("0" . meow-expand-0)
+    '("9" . meow-expand-9)
+    '("8" . meow-expand-8)
+    '("7" . meow-expand-7)
+    '("6" . meow-expand-6)
+    '("5" . meow-expand-5)
+    '("4" . meow-expand-4)
+    '("3" . meow-expand-3)
+    '("2" . meow-expand-2)
+    '("1" . meow-expand-1)
+    '("-" . negative-argument)
+    '(";" . meow-reverse)
+    '("," . meow-inner-of-thing)
+    '("." . meow-bounds-of-thing)
+    '("[" . meow-beginning-of-thing)
+    '("]" . meow-end-of-thing)
+    '("a" . meow-append)
+    '("A" . meow-open-below)
+    '("b" . meow-back-word)
+    '("B" . meow-back-symbol)
+    '("c" . meow-change)
+    '("d" . meow-delete)
+    '("D" . meow-backward-delete)
+    '("e" . meow-next-word)
+    '("E" . meow-next-symbol)
+    '("f" . meow-find)
+    '("g" . meow-cancel-selection)
+    '("G" . meow-grab)
+    '("h" . meow-left)
+    '("H" . meow-left-expand)
+    '("i" . meow-insert)
+    '("I" . meow-open-above)
+    '("j" . meow-next)
+    '("J" . meow-next-expand)
+    '("k" . meow-prev)
+    '("K" . meow-prev-expand)
+    '("l" . meow-right)
+    '("L" . meow-right-expand)
+    '("m" . meow-join)
+    '("n" . meow-search)
+    '("o" . meow-block)
+    '("O" . meow-to-block)
+    '("p" . meow-yank)
+    '("q" . meow-quit)
+    '("Q" . meow-goto-line)
+    '("r" . meow-replace)
+    '("R" . meow-swap-grab)
+    '("s" . meow-kill)
+    '("t" . meow-till)
+    '("u" . meow-undo)
+    '("U" . meow-undo-in-selection)
+    '("v" . meow-visit)
+    '("w" . meow-mark-word)
+    '("W" . meow-mark-symbol)
+    '("x" . meow-line)
+    '("X" . meow-goto-line)
+    '("y" . meow-save)
+    '("Y" . meow-sync-grab)
+    '("z" . meow-pop-selection)
+    '("'" . repeat)
+    '("<escape>" . ignore)))
+ (meow-setup) (meow-global-mode 1))
+#+end_src
+
+#+RESULTS:
+: t
+
+* Project
+** activities.el
+#+begin_src elisp
+(use-package
+ activities
+ :demand t
+ :init
+ (activities-mode)
+ (setq edebug-inhibit-emacs-lisp-mode-bindings t)
+ :bind
+ (("C-x C-a C-n" . activities-new)
+  ("C-x C-a C-d" . activities-define)
+  ("C-x C-a C-a" . activities-resume)
+  ("C-x C-a C-s" . activities-suspend)
+  ("C-x C-a C-k" . activities-kill)
+  ("C-x C-a RET" . activities-switch)
+  ("C-x C-a b" . activities-switch-buffer)
+  ("C-x C-a g" . activities-revert)
+  ("C-x C-a l" . activities-list)))
+#+end_src
+** Desktop Session Persisit
+#+begin_src elisp
+;; (use-package desktop
+;;   :straight (:type built-in)
+  
+;;   :hook (after-init . desktop-save-mode)
+    
+;;   :custom
+;;   (desktop-base-file-name "emacs.desktop")
+;;   (desktop-base-lock-name "lock")
+;;   (desktop-save t)
+  
+;;   (desktop-files-not-to-save "\\(^$\\|.*magit$\\)")
+  
+;;   (desktop-restore-eager 5)
+;;   (desktop-load-locked-desktop t)
+  
+;;   (desktop-buffers-not-to-save
+;;    (concat "\\("
+;;            "^nn\\.a[0-9]+\\|\\.log\\|(ftp)\\|^tags\\|^TAGS"
+;;            "\\|\\.emacs.*\\|\\.diary\\|\\.newsrc-dribble\\|\\.bbdb"
+;;            "\\|^\\*tabspaces\\*\\|^\\*Tab-Bar-Groups\\*" 
+;;            "\\)$")))
+#+end_src
+** Tabspace
+#+begin_src elisp
+;; (use-package
+;;  tabspaces
+;;  :hook (after-init . tabspaces-mode)
+;;  :commands
+;;  (tabspaces-switch-or-create-workspace
+;;   tabspaces-open-or-create-project-and-workspace)
+;;  :custom
+;;  (tabspaces-use-filtered-buffers-as-default t)
+;;  (tabspaces-default-tab "Default")
+;;  (tabspaces-remove-to-default t)
+;;  (tabspaces-include-buffers '("*scratch*"))
+;;  (tabspaces-initialize-project-with-todo t)
+;;  (tabspaces-todo-file-name "project-todo.org")
+;;  ;; sessions
+;;  (tabspaces-session t)
+;;  (tabspaces-session-auto-restore nil)
+;;  ;; additional options
+;;  (tabspaces-fully-resolve-paths t) ; Resolve relative project paths to absolute
+;;  (tabspaces-exclude-buffers '("*Messages*" "*Compile-Log*")) ; Additional buffers to exclude
+;;  (tab-bar-new-tab-choice "*scratch*"))
+
+;; Filter Buffers for Consult-Buffer
+
+;; (with-eval-after-load 'consult
+;; ;; hide full buffer list (still available with "b" prefix)
+;; (consult-customize consult--source-buffer :hidden t :default nil)
+;; ;; set consult-workspace buffer list
+;; (defvar consult--source-workspace
+;;   (list :name     "Workspace Buffers"
+;;         :narrow   ?w
+;;         :history  'buffer-name-history
+;;         :category 'buffer
+;;         :state    #'consult--buffer-state
+;;         :default  t
+;;         :items    (lambda () (consult--buffer-query
+;;                          :predicate #'tabspaces--local-buffer-p
+;;                          :sort 'visibility
+;;                          :as #'buffer-name)))
+
+;;   "Set workspace buffer list for consult-buffer.")
+;; (add-to-list 'consult-buffer-sources 'consult--source-workspace))
+#+end_src
+
+** Magit
+#+begin_src elisp
+(use-package magit
+  :bind ("C-x g" . magit-status))
+#+end_src
+
+#+RESULTS:
+: magit-status
+
+* MiniBuffer
+
+** Completion with Vertico
+
+#+begin_src elisp
+(use-package
+ vertico
+ :init (vertico-mode)
+ :config
+ ;; Configure the display per command.
+ ;; Use a buffer with indices for imenu
+ ;; and a flat (Ido-like) menu for M-x.
+ ;; (setq vertico-multiform-commands
+ ;;     '((consult-imenu buffer indexed)
+ ;;     (execute-extended-command unobtrusive)))
+
+ ;; Configure the display per completion category.
+ ;; Use the grid display for files and a buffer
+ ;; for the consult-grep commands.
+ ;; (setq vertico-multiform-categories
+ ;;     '((file grid)
+ ;;     (consult-grep buffer)))
+ :custom
+ ;; Enable context menu. `vertico-multiform-mode' adds a menu in the minibuffer
+ ;; to switch display modes.
+ (context-menu-mode t)
+ ;; Support opening new minibuffers from inside existing minibuffers.
+ (enable-recursive-minibuffers t)
+ ;; Hide commands in M-x which do not work in the current mode.  Vertico
+ ;; commands are hidden in normal buffers. This setting is useful beyond
+ ;; Vertico.
+ (read-extended-command-predicate
+  #'command-completion-default-include-p)
+ ;; Do not allow the cursor in the minibuffer prompt
+ (minibuffer-prompt-properties
+  '(read-only t cursor-intangible t face minibuffer-prompt)))
+
+(use-package
+ vertico-posframe
+ :custom
+ (vertico-posframe-border-width 1)
+ (vertico-posframe-min-height 5)
+ (vertico-posframe-min-width 80)
+ :config
+ (with-eval-after-load 'vertico
+   (setq vertico-multiform-commands
+         '((execute-extended-command flat)
+           (select-frame-by-name posframe)))
+
+   (setq vertico-posframe-parameters
+         '((left-fringe . 6) (right-fringe . 5)))
+   (set-face 'vertico-posframe-border 'corfu-border)
+   ;;   (consult-line)
+   ;;   posframe
+   ;;   (vertico-posframe-poshandler
+   ;;    . posframe-poshandler-frame-top-center)
+   ;;   (vertico-posframe-border-width . 10)
+   ;;   ;; NOTE: This is useful when emacs is used in both in X and
+   ;;   ;; terminal, for posframe do not work well in terminal, so
+   ;;   ;; vertico-buffer-mode will be used as fallback at the
+   ;;   ;; moment.
+   ;;   (vertico-posframe-fallback-mode . vertico-buffer-mode))
+   ;; (t posframe))
+
+   (vertico-multiform-mode 1)))
+#+end_src
+
+#+RESULTS:
+
+** Order with Orderless
+
+#+begin_src elisp
+(use-package
+ orderless
+ :custom
+ ;; Configure a custom style dispatcher (see the Consult wiki)
+ ;; (orderless-style-dispatchers '(+orderless-consult-dispatch orderless-affix-dispatch))
+ ;; (orderless-component-separator #'orderless-escapable-split-on-space)
+ (completion-styles '(orderless basic))
+ (completion-category-overrides '((file (styles partial-completion))))
+ (completion-category-defaults nil) ;; Disable defaults, use our settings
+ (completion-pcm-leading-wildcard t)) ;; Emacs 31: partial-completion behaves like substring
+#+end_src
+
+#+RESULTS:
+
+** Docstring with Marginalia
+#+begin_src elisp
+(use-package marginalia
+  :after vertico
+  :init
+  (marginalia-mode))
+#+end_src
+** Consult
+; create a elisp block in org to install consult package
+
+#+begin_src elisp
+(use-package
+ consult
+ :ensure t
+ :custom (consult-preview-partial-size 4096)
+ :bind (("C-x b" . consult-buffer)
+        ("C-c M-x" . consult-mode-command)
+        ("C-c h" . consult-history)
+        ("C-x 4 b" . consult-buffer-other-window)
+        ("C-x 5 b" . consult-buffer-other-frame)
+        ("C-x t b" . consult-buffer-other-tab)
+        ("C-x r b" . consult-bookmark)
+        ("C-x p b" . consult-project-buffer)
+
+        ("M-s d" . consult-find)
+        ("M-s g" . consult-grep)
+        ("M-s G" . consult-git-grep)
+        ("M-s r" . consult-ripgrep)
+        ("M-s l" . consult-line)
+        ("M-s L" . consult-line-multi)
+        ("M-s e" . consult-isearch-history)
+        ("M-s f" . select-frame-by-name)
+        :map minibuffer-local-map
+        ("M-s" . consult-history)))
+
+#+end_src
+
+#+RESULTS:
+: consult-history
+
+#+begin_src elisp_disabled
+(use-package embark
+  :ensure t
+
+  :bind
+  (("C-." . embark-act)         ;; pick some comfortable binding
+   ("C-;" . embark-dwim)        ;; good alternative: M-.
+   ("C-h B" . embark-bindings)) ;; alternative for `describe-bindings'
+
+  :init
+
+  ;; Optionally replace the key help with a completing-read interface
+  (setq prefix-help-command #'embark-prefix-help-command)
+
+  ;; Show the Embark target at point via Eldoc. You may adjust the
+  ;; Eldoc strategy, if you want to see the documentation from
+  ;; multiple providers. Beware that using this can be a little
+  ;; jarring since the message shown in the minibuffer can be more
+  ;; than one line, causing the modeline to move up and down:
+
+  ;; (add-hook 'eldoc-documentation-functions #'embark-eldoc-first-target)
+  ;; (setq eldoc-documentation-strategy #'eldoc-documentation-compose-eagerly)
+
+  ;; Add Embark to the mouse context menu. Also enable `context-menu-mode'.
+  ;; (context-menu-mode 1)
+  ;; (add-hook 'context-menu-functions #'embark-context-menu 100)
+
+  :config
+
+  ;; Hide the mode line of the Embark live/completions buffers
+  (add-to-list 'display-buffer-alist
+               '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+                 nil
+                 (window-parameters (mode-line-format . none)))))
+
+;; Consult users will also want the embark-consult package.
+(use-package embark-consult
+  :ensure t ; only need to install it, embark loads it after consult if found
+  :hook
+  (embark-collect-mode . consult-preview-at-point-mode))
+#+end_src
+
+#+RESULTS:
+| consult-preview-at-point-mode |
+
+* Programming
+** Expand Region
+#+begin_src elisp
+;;(use-package expand-region
+  ;;:bind ("C-=" . er/expand-region))
+#+end_src
+
+#+RESULTS:
+: er/expand-region
+
+** LSP with eglot
+#+begin_src elisp
+
+(use-package
+ eglot
+
+ :straight (:type built-in)
+ :custom (eglot-autoshutdown t))
+#+end_src
+
+#+RESULTS:
+: t
+
+** Structure Editing with smartparens
+
+#+begin_src elisp_disabled
+(use-package
+ smartparens
+ :hook (emacs-lisp-mode clojure-ts-mode)
+ :custom
+ (sp-navigate-consider-symbols nil)
+ (show-smartparens-global-mode t)
+ (sp-show-pair-from-inside t)
+ :config (require 'smartparens-config)
+ ;(add-hook 'org-mode-hook (lambda () (smartparens-mode -1)))
+
+ (defun my/define-sp (sp-action emacs-kbd state evil-key)
+   (define-key smartparens-mode-map (kbd emacs-kbd) sp-action)
+   (when (and state evil-key)
+     (with-eval-after-load 'evil
+       (evil-define-key
+        state smartparens-mode-map (kbd evil-key) sp-action))))
+
+
+ ;; Movement & Selection
+ (my/define-sp 'sp-forward-sexp "C-M-f" '(normal visual) "E") ; C-M-F Select to forward end of sexp
+ (my/define-sp 'sp-backward-sexp "C-M-b" '(normal visual) "B") ; C-M-B backward version for selection
+
+ ; I can't make blow acted consistly, so just disable them
+ ;(defun my/sp-next-sexp () (interactive) (sp-forward-sexp) (sp-next-sexp))
+ ;(my/define-sp 'my/sp-next-sexp "C-M-n" '(normal visual) "L")
+ ;(evil-define-key '(normal visual) smartparens-mode-map "W" 'my/sp-next-sexp)
+ ;(my/define-sp (lambda () (interactive) (sp-forward-sexp) (sp-previous-sexp)) "C-M-p" '(normal visual) "H")
+ (define-key smartparens-mode-map (kbd "C-M-n") 'sp-next-sexp)
+ (define-key smartparens-mode-map (kbd "C-M-p") 'sp-previous-sexp)
+
+ (my/define-sp 'sp-select-next-thing "C-M-]" 'visual "L")
+ (my/define-sp 'sp-select-previous-thing-exchange "C-M-[" 'visual ",h")
+ (my/define-sp 'sp-beginning-of-sexp "M-a" '(normal visual) ",l")
+
+ ; todo, it seems ,+adue it not very useful than C-M-x things, and may be miss taken by aPPEND, uNDO
+ (define-key
+  smartparens-mode-map (kbd "C-M-a") 'sp-backward-down-sexp)
+ (define-key smartparens-mode-map (kbd "C-M-d") 'sp-down-sexp)
+ (define-key smartparens-mode-map (kbd "C-M-u") 'sp-backward-up-sexp)
+ (define-key smartparens-mode-map (kbd "C-M-e") 'sp-up-sexp)
+
+ ;; Wrap & Unwrap
+ (evil-define-key
+  '(normal visual) smartparens-mode-map ",(" 'sp-wrap-round)
+ (evil-define-key
+  '(normal visual) smartparens-mode-map ",[" 'sp-wrap-square)
+ (evil-define-key
+  '(normal visual) smartparens-mode-map ",{" 'sp-wrap-curly)
+ ;; Unwrap
+ (my/define-sp
+  'sp-backward-unwrap-sexp "M-<backspace>" 'normal ", <DEL>")
+ ;; Rewrap
+ (my/define-sp 'sp-rewrap-sexp "C-M-, r" 'normal ",r")
+ ;;;; Swap Sexp
+ (my/define-sp 'sp-transpose-sexp "C-M-t" 'normal ",t")
+ ;; Kill
+ (my/define-sp 'sp-kill-sexp "C-M-k" 'normal ",k")
+ (my/define-sp 'sp-backward-kill-sexp "C-- C-M-k" 'normal ",,k")
+
+ ;; Slurp barf
+ (my/define-sp 'sp-forward-slurp-sexp "C-M->" 'normal ">")
+ (my/define-sp 'sp-forward-barf-sexp "C-M-<" 'normal "<")
+
+ (my/define-sp 'sp-add-to-next-sexp "C-M-, >" 'normal ",>")
+ (my/define-sp 'sp-add-to-previous-sexp "C-M-, <" 'normal ",<")
+
+ (define-key
+  smartparens-mode-map (kbd "C-- C-M->") 'sp-backward-barf-sexp)
+ (define-key
+  smartparens-mode-map (kbd "C-- C-M-<") 'sp-backward-slurp-sexp))
+#+end_src
+
+** Structure Editing
+#+begin_src elisp
+(use-package parinfer-rust-mode
+  :hook '(emacs-lisp-mode)
+  :custom
+  (parinfer-rust-preferred-mode 'indent))
+
+#+end_src
+
+#+RESULTS:
+| elisp-autofmt-mode | parinfer-rust-mode | ert--activate-font-lock-keywords | indent-bars-mode |
+
+** Tree-sitter
+#+begin_src elisp
+; The name format is not correct, install via nix now, (windows notice)
+;; (use-package tree-sitter-langs
+;;   :straight (tree-sitter-langs :type git :host github :repo "emacs-tree-sitter/tree-sitter-langs")
+;;   :custom
+;;   (major-mode-remap-alist '((nix-mode . nix-ts-mode)))
+;;   )
+#+end_src
+
+#+RESULTS:
+
+** Completion with corfu
+
+*** Setup
+#+begin_src elisp
+(use-package
+ corfu
+ ;; Optional customizations
+ :custom (corfu-auto t)
+ (corfu-auto-delay 0.2) ;; 可选：延迟 0.2 秒再弹，防止闪烁
+ (corfu-auto-prefix 2) ;; 可选：打 2 个字才弹，防止干扰
+ (corfu-quit-no-match 'separator) ;; 没匹配时自动退出
+ (corfu-popupinfo-delay 0.1)
+ (corfu-cycle t) ;; Enable cycling for `corfu-next/previous'
+ ;; (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
+ ;; (corfu-quit-no-match nil)      ;; Never quit, even if there is no match
+ ;; (corfu-preview-current nil)    ;; Disable current candidate preview
+ (corfu-preselect 'prompt) ;; Preselect the prompt
+ ;; (corfu-on-exact-match 'insert) ;; Configure handling of exact matches
+ (corfu-separator ?\s)
+
+ ;; Enable Corfu only for certain modes. See also `global-corfu-modes'.
+ :hook
+ ((prog-mode . corfu-mode)
+  (shell-mode . corfu-mode)
+  (eshell-mode . corfu-mode))
+
+ :bind
+ (:map
+  corfu-map
+  ("TAB" . corfu-next) ;; TAB 键 = 下一个候选
+  ("[tab]" . corfu-next) ;; (兼容图形界面 TAB)
+  ("S-TAB" . corfu-previous) ;; Shift+TAB = 上一个候选
+  ("<backtab>" . corfu-previous)
+  ("<return>" . corfu-insert) ;;回车 插入
+  ("RET" . corfu-insert)) ;;回车 插入
+   ;; 终端下的 ESC 键序列 (Ctrl-[)
+
+ :init
+ ;; Recommended: Enable Corfu globally.  Recommended since many modes provide
+ ;; Capfs and Dabbrev can be used globally (M-/).  See also the customization
+ ;; variable `global-corfu-modes' to exclude certain modes.
+ (global-corfu-mode)
+ ;; Enable optional extension modes:
+ (corfu-history-mode) (corfu-popupinfo-mode))
+  #+end_src
+
+#+RESULTS:
+: corfu-insert
+
+*** Emacs settings for corfu
+#+begin_src elisp
+(use-package
+ emacs
+ :custom
+ ;; TAB cycle if there are only few candidates
+ ;; (completion-cycle-threshold 3)
+
+ ;; Enable indentation+completion using the TAB key.
+ ;; `completion-at-point' is often bound to M-TAB.
+ (tab-always-indent 'complete)
+
+ ;; Emacs 30 and newer: Disable Ispell completion function.
+ ;; Try `cape-dict' as an alternative.
+ (text-mode-ispell-word-completion nil)
+
+ ;; Hide commands in M-x which do not apply to the current mode.  Corfu
+ ;; commands are hidden, since they are not used via M-x. This setting is
+ ;; useful beyond Corfu.
+ (read-extended-command-predicate
+  #'command-completion-default-include-p))
+#+end_src
+
+*** Theme with nano
+#+begin_src elisp
+(defun my/nano-theme--corfu ()
+  "Derive corfu faces using direct nano colors."
+
+  (setq corfu-left-margin-width 1)
+  (setq corfu-right-margin-width 1)
+  (setq corfu-border-width 1)
+
+  (set-face-attribute 'corfu-default nil
+                      :background nano-color-background
+                      :foreground nano-color-foreground
+                      :inherit nil
+                      :box nil)
+
+  (set-face-attribute 'corfu-current nil
+                      :background nano-color-subtle
+                      :foreground nano-color-foreground
+                      :inherit nil)
+
+
+  (set-face-attribute 'corfu-border nil
+                      :background nano-color-faded
+                      :foreground 'unspecified
+                      :inherit nil
+                      :box nil)
+
+  (set-face-attribute 'corfu-bar nil
+                      :background nano-color-background
+                      :inherit nil)
+
+
+  (set-face-attribute 'corfu-annotations nil
+                      :foreground nano-color-faded
+                      :background 'unspecified
+                      :inherit nil)
+
+  (set-face-attribute 'corfu-deprecated nil
+                      :strike-through nano-color-faded
+                      :foreground nano-color-faded
+                      :inherit nil))
+(my/nano-theme--corfu)
+(with-eval-after-load 'nano
+  (advice-add 'nano-theme :after #'my/nano-theme--corfu))
+#+end_src
+
+#+RESULTS:
+** Terminal
+#+begin_src elisp
+(use-package
+ vterm
+ :straight nil ;; buitin with nix
+ :custom
+ (vterm-kill-buffer-on-exit t)
+ (vterm-max-scrollback 10000)
+ (vterm-buffer-name-string "*vterm:%s*")
+ (vterm-ke)
+ :config
+ (define-key vterm-mode-map (kbd "C-c")
+             (lambda () (interactive) (vterm-send "\C-c")))
+ (define-key vterm-mode-map (kbd "C-t") 'vterm-copy-mode)
+ (with-eval-after-load 'nano
+   (defun nano-modeline-term-mode ()
+     (let* ((name (buffer-name))
+            (name (if (string-match ":\\([^*]+\\)" name) (concat "(" (match-string 1 name) ")")  "")))
+       (nano-modeline-compose "" "Terminal" name  ""))))
+ (defun my/vterm-bang () (message "Beep!"))
+ (add-hook 'vterm-mode-hook (lambda () (setq-local ring-bell-function 'my/vterm-bang))))
+#+end_src
+
+#+RESULTS:
+: t
+
+** Lanuages
+*** Clojure
+Cider
+#+begin_src elisp
+(use-package cider)
+(use-package clojure-ts-mode)
+#+end_src
+
+#+RESULTS:
+
+*** ELisp
+#+begin_src elisp
+(use-package elisp-autofmt
+  :commands (elisp-autofmt-mode elisp-autofmt-buffer)
+  :hook (emacs-lisp-mode . elisp-autofmt-mode))
+#+end_src
+
+#+RESULTS:
+| elisp-autofmt-mode |
+
+*** Nix
+#+begin_src elisp
+
+(use-package nix-ts-mode :mode "\\.nix\\'")
+
+(with-eval-after-load 'eglot
+  (add-to-list
+   'eglot-server-programs `((nix-mode nix-ts-mode) . ("nixd")))
+  (setf (plist-get
+         (default-value 'eglot-workspace-configuration)
+         :nixd)
+        '(:formatting (:command ["alejandra"])))
+  (with-eval-after-load 'nix-ts-mode
+    (add-hook 'nix-ts-mode-hook 'eglot-ensure)))
+#+end_src
+
+#+RESULTS:
+| :formatting | (:command [alejandra]) |
+
+* AI
+
+** Chat Client with gptel
+#+begin_src elisp
+(use-package
+ gptel
+ :ensure t
+ :config
+ (setq one2x
+       (gptel-make-openai
+        "one2x"
+        :host "llm.jp.one2x.ai"
+        :endpoint "/v1/chat/completions"
+        :stream t
+       :key (lambda () "sk-REDACTED-PLACEHOLDER-KEY")
+        :models
+        '("gemini-3-flash-preview"
+          "vertex_ai/gemini-3-pro-preview"
+          "us.anthropic.claude-sonnet-4-5-20250929-v1:0")))
+
+ (setq gptel-backend one2x)
+ (setq gptel-model "gemini-3-flash-preview")
+
+ (defvar-local my/gptel-status nil)
+ (defun my/gptel-update-status (&optional msg face)
+   (setq my/gptel-status msg))
+ (advice-add 'gptel--update-status :after #'my/gptel-update-status)
+
+ (with-eval-after-load 'meow
+   (add-to-list 'meow-mode-state-list '(gptel-mode . insert)))
+
+ (setf (alist-get 'org-mode gptel-prompt-prefix-alist) "** @user ")
+ (setf (alist-get 'org-mode gptel-response-prefix-alist)
+       "** @assistant ")
+ (add-hook
+  'gptel-mode-hook
+  (lambda ()
+    (font-lock-add-keywords
+     nil
+     '(("@user" . 'font-lock-keyword-face)
+       ("@assistant" . 'font-lock-keyword-face)))))
+
+ :custom
+ (gptel-use-header-line nil)
+ (gptel-org-branching-context t)
+
+ :bind (("C-c RET" . gptel-send) ("C-c C-<return>" . gptel-menu)))
+#+end_src
+
+#+RESULTS:
+: gptel-menu
+
+* Org Mode
+#+begin_src elisp
+(use-package org
+  :straight nil
+  :custom
+  (org-confirm-babel-evaluate nil)
+  (org-hide-leading-stars t)
+  (org-src-fontify-natively t)
+  (org-startup-indented t)
+  (org-startup-folded 'overview)
+
+  (org-edit-src-content-indentation 0)
+  (org-src-preserve-indentation t)
+  (org-src-tab-acts-natively t)
+  :config
+ (add-hook 'org-mode-hook 'visual-line-mode))
+  
+#+end_src
+
+#+RESULTS:
+: t
+
+* Emacs
+#+begin_src elisp
+(use-package
+ emacs
+ :custom
+ (mac-option-key-is-meta t)
+ (mac-option-modifier 'meta)
+ ;(mac-command-modifier 'super)
+ (mac-pass-command-to-system t)
+
+ (auto-revert-interval 1)
+ (auto-revert-verbose nil)
+ :config
+ (global-auto-revert-mode 1)
+
+ (define-key
+  minibuffer-local-map (kbd "<escape>") 'keyboard-escape-quit)
+ (global-unset-key (kbd "C-z")) (global-unset-key (kbd "C-x C-z"))
+ (dotimes (i 9)
+  (global-unset-key (kbd (format "s-%d" (1+ i))))))
+
+       
+#+end_src
+
+#+RESULTS:
+: t

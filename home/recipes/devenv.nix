@@ -27,4 +27,21 @@
       sessionPath = ["${config.home.homeDirectory}/.bun/bin"];
     };
   };
+  clojure = {pkgs, ...}: {
+    home = {
+      packages = with pkgs; [
+        (clojure.override { jdk = javaPackages.compiler.temurin-bin.jdk-21; })
+        javaPackages.compiler.temurin-bin.jdk-21
+        clojure-lsp
+        clj-kondo
+        cljfmt
+        cljstyle
+        babashka
+        bbin
+      ];
+      sessionVariables = {
+        JAVA_HOME = "${pkgs.javaPackages.compiler.temurin-bin.jdk-21}";
+      };
+    };
+  };
 }

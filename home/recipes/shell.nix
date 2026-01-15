@@ -18,6 +18,8 @@
       # enableNushellIntegration = true;
       enableZshIntegration = true;
     };
+
+    programs.ripgrep.enable = true;
   };
   direnv = {
     programs.direnv = {

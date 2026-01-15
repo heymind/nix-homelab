@@ -2,6 +2,7 @@
   sops-nix,
   recipes,
   pkgs,
+  config,
   ...
 }: {
   imports =
@@ -12,7 +13,9 @@
       devenv-nix
       devenv-nodejs
       devenv-bun
+      devenv-clojure
 
+      hm-my
       hm-common
       hm-sops
 
@@ -23,13 +26,17 @@
       git-as-heymind
 
       one2x-claude
+      one2x-devenv
 
       emacs-daemon
       emacs-with-plugins
+      emacs-with-config
     ]);
 
   home.username = "hey";
   home.homeDirectory = "/Users/hey";
   home.stateVersion = "25.11";
+
+  my.flakeRepoPath = "${config.home.homeDirectory}/Workspace/nix-staff/nix-homelab";
   sops.defaultSopsFile = ../../secrets/hey_mbp16.yaml;
 }

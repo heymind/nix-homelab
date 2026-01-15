@@ -91,7 +91,7 @@
     };
 
     # Home Manager configurations (auto-discovered from ./home/*.nix)
-    # nix run .#inputs.home-manager.packages.aarch64-darwin.home-manager -- switch --flake .#hey-mbp
+    # nix run .#inputs.home-manager.packages.aarch64-darwin.home-manager -- switch --flake .#hey
     homeConfigurations = import ./home {
       inherit inputs outputs pkgs;
       sensitive = inputs.sensitive;

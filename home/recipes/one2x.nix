@@ -62,4 +62,14 @@
       executable = true;
     };
   };
+
+  devenv = {pkgs, ...}: {
+    home = {
+      packages = with pkgs; [
+       unstable.awscli2
+       unstable.ssm-session-manager-plugin
+      ];
+      
+    };
+  };
 }
