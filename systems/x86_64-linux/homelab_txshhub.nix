@@ -83,7 +83,7 @@
     imports = [
       recipes.server.warpgate.defaults
     ];
-    services.warpgate.enable = true;
+    services.warpgate.enable = lib.mkForce false;
   };
   sops-recipe = {
     sops = {
@@ -125,6 +125,9 @@
     };
   };
   system-recipe = {
+    # Configure Go proxy for building Go packages
+    systemd.services.nix-daemon.environment.GOPROXY = "https://goproxy.cn,direct";
+    
     time.timeZone = "Asia/Shanghai";
     boot.tmp.cleanOnBoot = true;
     zramSwap.enable = true;
