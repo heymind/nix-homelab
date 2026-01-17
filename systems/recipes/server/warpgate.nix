@@ -5,10 +5,8 @@
   in {
     services.warpgate = {
       enable = lib.mkDefault true;
-      databaseUrlFile = config.sops.secrets."warpgate.env".path;
       settings = {
-        # Ensure databaseUrlFile is the only source
-        database_url = null;
+        database_url = "postgres://warpgate@localhost/warpgate?host=/run/postgresql&sslmode=disable";
         external_host = null;
         ssh = {
           enable = true;
@@ -16,6 +14,7 @@
           host_key_verification = lib.mkDefault "auto_accept";
         };
         http = {
+          enable = true;
           listen = "127.0.0.1:${toString ports.web}";
         };
         recordings = {
@@ -27,7 +26,7 @@
 
     services.nginx.virtualHosts.warpgate = {
       locations."/" = {
-        proxyPass = "http://${cfg.settings.http.listen}";
+        proxyPass = "https://${cfg.settings.http.listen}";
         extraConfig = ''
           proxy_ssl_verify off;
         '';
@@ -35,7 +34,7 @@
     };
     services.nginx.virtualHosts.warpgate_vhost = {
       locations."/" = {
-        proxyPass = "http://${cfg.settings.http.listen}";
+        proxyPass = "https://${cfg.settings.http.listen}";
         extraConfig = ''
           proxy_ssl_verify off;
         '';

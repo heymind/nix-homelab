@@ -83,7 +83,6 @@
     imports = [
       recipes.server.warpgate.defaults
     ];
-    services.warpgate.enable = lib.mkForce false;
   };
   sops-recipe = {
     sops = {
@@ -93,7 +92,6 @@
         "acme/${domains.base}.env" = {};
         "woodpecker.env" = {};
         "vaultwarden.env" = {};
-        "warpgate.env" = {};
         "frps.env" = {};
       };
     };
