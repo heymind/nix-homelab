@@ -2,6 +2,7 @@
   lib,
   config,
   pkgs,
+  ux,
   ...
 }:
 with lib; let
@@ -18,7 +19,6 @@ with lib; let
 
   host = config.services.nginx.virtualHosts.headscale;
   exposePort = config.services.nginx.defaultSSLListenPort;
-  utils = import ./_utils.nix;
 in {
   options.installed.headscale = {
     enable = mkEnableOption "";
@@ -53,7 +53,7 @@ in {
       };
     };
 
-    services.postgresql = utils.ensurePostgresDatabase {name = "headscale";};
+    services.postgresql = ux.server.ensurePostgresDatabase {name = "headscale";};
     systemd.services.headscale.after = [config.systemd.services.postgresql.name];
   };
 }

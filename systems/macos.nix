@@ -17,7 +17,10 @@ in
   }:
     nix-darwin.lib.darwinSystem rec {
       inherit system;
-      specialArgs = {inherit inputs outputs sops-nix sensitive recipes nix-homebrew;};
+      specialArgs = {
+        inherit inputs outputs sops-nix sensitive recipes nix-homebrew;
+        ux = outputs.utils;
+      };
       pkgs = _pkgs.${system};
 
       modules =

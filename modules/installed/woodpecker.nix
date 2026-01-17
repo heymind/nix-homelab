@@ -3,6 +3,7 @@
   config,
   pkgs,
   inputs,
+  ux,
   ...
 }:
 with lib; let
@@ -10,7 +11,6 @@ with lib; let
   woodpecker = config.installed.woodpecker;
   host = config.services.nginx.virtualHosts.woodpecker;
   exposePort = config.services.nginx.defaultSSLListenPort;
-  utils = import ./_utils.nix;
 in {
   options.installed.woodpecker = {
     enable = mkEnableOption "";
@@ -47,7 +47,7 @@ in {
       };
     };
 
-    services.postgresql = utils.ensurePostgresDatabase {name = "woodpecker";};
+    services.postgresql = ux.server.ensurePostgresDatabase {name = "woodpecker";};
     systemd.services.woodpecker.after = [config.systemd.services.postgresql.name];
   };
 }

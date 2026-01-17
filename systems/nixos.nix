@@ -11,7 +11,6 @@
     sops-nix.nixosModules.sops
     ../modules
     ../modules/installed
-    ./common/ports.nix
   ];
   utils = import ../common/utils.nix {inherit (nixpkgs) lib;};
   recipes = import ./recipes {inherit (nixpkgs) lib;};
@@ -23,7 +22,10 @@ in
   }:
     nixpkgs.lib.nixosSystem rec {
       inherit system;
-      specialArgs = {inherit inputs outputs sops-nix sensitive;};
+      specialArgs = {
+        inherit inputs outputs sops-nix sensitive recipes;
+        ux = outputs.utils;
+      };
       pkgs = _pkgs.${system};
 
       modules =

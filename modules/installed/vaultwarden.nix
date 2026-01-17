@@ -1,6 +1,7 @@
 {
   lib,
   config,
+  ux,
   ...
 }:
 with lib; let
@@ -9,7 +10,6 @@ with lib; let
 
   host = config.services.nginx.virtualHosts.vaultwarden;
   exposePort = config.services.nginx.defaultSSLListenPort;
-  utils = import ./_utils.nix;
 in {
   options.installed.vaultwarden = {
     enable = mkEnableOption "";
@@ -35,7 +35,7 @@ in {
       locations."/".proxyPass = "http://127.0.0.1:${toString cfg.config.ROCKET_PORT}"; # Default vaultwarden port
     };
 
-    services.postgresql = utils.ensurePostgresDatabase {name = "vaultwarden";};
+    services.postgresql = ux.server.ensurePostgresDatabase {name = "vaultwarden";};
     systemd.services.vaultwarden.after = [config.systemd.services.postgresql.name];
   };
 }

@@ -28,4 +28,16 @@ in {
       path = pkgs.x86_64-linux.deploy-rs.lib.activate.nixos self.nixosConfigurations.homelab_box;
     };
   };
+
+  nodes.homelab_txshhub = {
+    hostname = "110.42.214.132";
+    sshUser = "root";
+    remoteBuild = true;
+    fastConnection = false;
+
+    profiles.system = {
+      user = "root";
+      path = pkgs.x86_64-linux.deploy-rs.lib.activate.nixos self.nixosConfigurations.homelab_txshhub;
+    };
+  };
 }

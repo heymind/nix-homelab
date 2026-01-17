@@ -31,38 +31,30 @@
     nix = {
       gc = {
         automatic = true;
-        interval = {
-          Weekday = 0;
-          Hour = 4;
-          Minute = 0;
-        }; # 每周日 04:00
+        dates = "Sun 04:00";
         options = "--delete-older-than 14d";
       };
 
       optimise = {
         automatic = true;
-        interval = {
-          Weekday = 0;
-          Hour = 4;
-          Minute = 30;
-        };
+        dates = "Sun 04:30";
       };
     };
   };
 
   ustc-mirror = {
     nix = {
-      substituters = [
+      settings.substituters = [
         "https://mirrors.ustc.edu.cn/nix-channels/store"
       ];
     };
   };
   cachix = {
     nix = {
-      substituters = [
+      settings.substituters = [
         "https://nix-community.cachix.org"
       ];
-      extra-trusted-public-keys = [
+      settings.extra-trusted-public-keys = [
         "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
       ];
     };

@@ -90,7 +90,7 @@ in {
       (mkIf it.vmagent {
         services.vmagent = {
           enable = true;
-          remoteWrite.url = "http://${it.vmagent-remote}:${toString config.installed.monitoring.ports.victoriametrics}/api/v1/write";
+          remoteWrite.url = "http://${it.vmagent-remote}:${toString config.my.ports.monitoring.victoriametrics}/api/v1/write";
           inherit prometheusConfig;
         };
       })

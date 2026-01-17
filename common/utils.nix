@@ -50,6 +50,37 @@ in {
   in
     builtins.foldl' (acc: x: acc // x) {} (map loadFile nixFiles);
 
+  # Load all *.nix files (except default.nix) from a directory recursively,
+  # and preserve directory nesting without flattening names.
+  #
+  # Example:
+  #   ./server/gitea.nix => { defaults = ...; }
+  # becomes:
+  #   { server = { gitea = { defaults = ...; }; }; }
+  loadRecipes2 = fix (self: dir: let
+    entries = builtins.readDir dir;
+    names =
+      builtins.sort builtins.lessThan (builtins.attrNames entries);
+    fileEntries = builtins.filter
+      (name:
+        entries.${name} == "regular"
+        && name != "default.nix"
+        && builtins.match ".*\\.nix" name != null)
+      names;
+    dirEntries = builtins.filter
+      (name: entries.${name} == "directory")
+      names;
+    loadFile = file: let
+      basename = builtins.substring 0 (builtins.stringLength file - 4) file;
+    in {
+      ${basename} = import (dir + "/${file}");
+    };
+    loadDir = subdirName: {
+      ${subdirName} = self (dir + "/${subdirName}");
+    };
+  in
+    mergeAttrsList (map loadFile fileEntries ++ map loadDir dirEntries));
+
   scan = path: systems: callback: let
     load-system = system: let
       local-path = path + ("/" + system);

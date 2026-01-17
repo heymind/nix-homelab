@@ -46,8 +46,9 @@
     ];
     forAllSystems = nixpkgs.lib.genAttrs systems;
 
-    utils = import ./common/utils.nix {inherit (nixpkgs) lib;};
-    inherit (utils) when;
+    commonUtils = import ./common/utils.nix {inherit (nixpkgs) lib;};
+    inherit (commonUtils) when;
+    utils = import ./utils {inherit (nixpkgs) lib;};
 
     overlays = import ./overlays {inherit inputs when;};
 
@@ -98,8 +99,15 @@
     };
 
     # Utility functions
-    lib = utils;
+    lib = commonUtils;
+    utils = utils;
 
     deploy = import ./deploy.nix {inherit inputs pkgs;};
+
+    apps = forAllSystems (system:
+      import ./apps {
+        pkgs = pkgs.${system};
+        inherit (nixpkgs) lib;
+      });
   };
 }

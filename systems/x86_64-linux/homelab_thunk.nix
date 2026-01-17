@@ -5,6 +5,7 @@
   inputs,
   lib,
   sensitive,
+  recipes,
   ...
 }: let
   domains = rec {
@@ -271,7 +272,8 @@
 in {
   imports = [
     (modulesPath + "/installer/scan/not-detected.nix")
-    ../common
+    recipes.common.defaults
+    recipes.ports.defaults
     user-hey-recipe
     base-tools-recipe
     container-recipe

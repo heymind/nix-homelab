@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  ux,
   ...
 }:
 with lib; let
@@ -8,7 +9,6 @@ with lib; let
   gitea = config.installed.gitea;
   host = config.services.nginx.virtualHosts.gitea;
   exposePort = config.services.nginx.defaultSSLListenPort;
-  utils = import ./_utils.nix;
 in {
   options.installed.gitea = {
     enable = mkEnableOption "";
@@ -49,7 +49,7 @@ in {
       locations."/".proxyPass = "http://127.0.0.1:${toString cfg.settings.server.HTTP_PORT}";
     };
     networking.firewall.allowedTCPPorts = mkIf cfg.settings.server.START_SSH_SERVER [gitea.ports.ssh];
-    services.postgresql = utils.ensurePostgresDatabase {name = "gitea";};
+    services.postgresql = ux.server.ensurePostgresDatabase {name = "gitea";};
     systemd.services.gitea.after = [config.systemd.services.postgresql.name];
   };
 }

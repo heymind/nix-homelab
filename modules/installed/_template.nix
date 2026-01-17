@@ -33,7 +33,7 @@ in {
     };
 
     # Example Postgres database (optional): remove if not needed
-    # services.postgresql = utils.ensurePostgresDatabase { name = "example"; };
+    # services.postgresql = ux.server.ensurePostgresDatabase { name = "example"; };
 
     # Example: open firewall only if binding on non-localhost
     # networking.firewall.allowedTCPPorts = [ cfg.ports.web ];

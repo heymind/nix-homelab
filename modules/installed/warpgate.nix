@@ -2,15 +2,16 @@
   config,
   pkgs,
   lib,
+  ux,
   ...
 }:
 with lib; let
   cfg = config.services.warpgate;
 
   warpgate = config.installed.warpgate;
+  warpgatePorts = config.my.ports.warpgate;
   # host = config.services.nginx.virtualHosts.warpgate;
   # exposePort = config.services.nginx.defaultSSLListenPort;
-  utils = import ./_utils.nix;
 in {
   options.installed.warpgate = {
     enable = mkEnableOption "";
@@ -23,18 +24,18 @@ in {
     services.warpgate = {
       enable = true;
 
-      config = {
+      settings = {
         external_host = "~";
         database_url = "postgres://warpgate@localhost/warpgate?host=/run/postgresql&sslmode=disable";
         config_provider = "database";
         http = {
-          enable = true;
-          listen = "127.0.0.1:${toString warpgate.ports.web}";
+          listen = "127.0.0.1:${toString warpgatePorts.web}";
           certificate = "/var/lib/warpgate/tls.certificate.pem";
           key = "/var/lib/warpgate/tls.key.pem";
         };
         ssh = {
-          listen = "0.0.0.0:${toString warpgate.ports.ssh}";
+          enable = true;
+          listen = "0.0.0.0:${toString warpgatePorts.ssh}";
           keys = "/var/lib/warpgate/ssh-keys";
         };
         recordings = {
@@ -57,7 +58,7 @@ in {
 
     services.nginx.virtualHosts.warpgate = {
       locations."/" = {
-        proxyPass = "https://${cfg.config.http.listen}";
+        proxyPass = "https://${cfg.settings.http.listen}";
         extraConfig = ''
           proxy_ssl_verify off;
         '';
@@ -65,15 +66,15 @@ in {
     };
     services.nginx.virtualHosts.warpgate_vhost = {
       locations."/" = {
-        proxyPass = "https://${cfg.config.http.listen}";
+        proxyPass = "https://${cfg.settings.http.listen}";
         extraConfig = ''
           proxy_ssl_verify off;
         '';
       };
     };
-    networking.firewall.allowedTCPPorts = mkIf cfg.config.ssh.enable [warpgate.ports.ssh];
+    networking.firewall.allowedTCPPorts = mkIf cfg.settings.ssh.enable [warpgatePorts.ssh];
 
-    services.postgresql = utils.ensurePostgresDatabase {name = "warpgate";};
+    services.postgresql = ux.server.ensurePostgresDatabase {name = "warpgate";};
     systemd.services.warpgate.after = [config.systemd.services.postgresql.name];
   };
 }

@@ -5,6 +5,7 @@
   inputs,
   lib,
   sensitive,
+  recipes,
   ...
 }: let
   hostName = "homelab_txcdhub";
@@ -24,7 +25,8 @@
 in {
   imports = [
     (modulesPath + "/profiles/qemu-guest.nix")
-    ../common
+    recipes.common.defaults
+    recipes.ports.defaults
     # "${inputs.nixpkgs-unstable}/nixos/modules/services/security/pocket-id.nix"
     # "${inputs.nixpkgs-unstable}/nixos/modules/services/continuous-integration/woodpecker/server.nix"
   ];
@@ -87,7 +89,7 @@ in {
       enable = true;
       package = inputs.nixpkgs-unstable.legacyPackages.${pkgs.system}.woodpecker-agent;
       environment = {
-        WOODPECKER_SERVER = "127.0.0.1:${toString config.installed.woodpecker.ports.grpc}";
+        WOODPECKER_SERVER = "127.0.0.1:${toString config.my.ports.woodpecker.grpc}";
         WOODPECKER_BACKEND = "local";
       };
       environmentFile = [secrets."woodpecker.env".path];
@@ -166,7 +168,7 @@ in {
   networking.firewall.allowedTCPPorts = [80 8443 22 wg.listenPort];
   networking.firewall.allowedUDPPorts = [wg.listenPort];
   # enable remote write for victoriametrics
-  networking.firewall.interfaces.wg0.allowedTCPPorts = [config.installed.monitoring.ports.victoriametrics];
+  networking.firewall.interfaces.wg0.allowedTCPPorts = [config.my.ports.monitoring.victoriametrics];
   networking.firewall.enable = true;
 
   systemd.network = {
