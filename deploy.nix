@@ -18,13 +18,14 @@ in {
   };
 
   nodes.homelab_box = {
-    hostname = "";
-    sshUser = "root";
+    hostname = "box-local";
+    sshUser = "hey";
     remoteBuild = true;
     fastConnection = true;
 
     profiles.system = {
       user = "root";
+      sshUser = "hey";
       path = pkgs.x86_64-linux.deploy-rs.lib.activate.nixos self.nixosConfigurations.homelab_box;
     };
   };

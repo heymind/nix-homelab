@@ -190,17 +190,22 @@
 
     installed.transmission = {
       enable = true;
+      ports.web = config.my.ports.transmission.web;
       basicAuthFile = secrets."htpasswd".path;
     };
 
-    services.transmission.settings = {
-      rpc-host-whitelist-enabled = true;
-      rpc-host-whitelist = domains.transmission;
-      rpc-bind-address = "0.0.0.0";
+    services.transmission = {
+      package = pkgs.transmission_4;
+      settings = {
+        rpc-host-whitelist-enabled = true;
+        rpc-host-whitelist = domains.transmission;
+        rpc-bind-address = "0.0.0.0";
+      };
     };
 
     installed.aria2 = {
       enable = true;
+      ports.rpc = config.my.ports.aria2.rpc;
       basicAuthFile = secrets."htpasswd".path;
     };
   };
@@ -253,6 +258,11 @@
       vmagent-remote = wg.configs.homelab_txcdhub.address;
       node_exporter = true;
       nginx = true;
+      ports = {
+        grafana = config.my.ports.monitoring.grafana;
+        victoriametrics = config.my.ports.monitoring.victoriametrics;
+        node_exporter = config.my.ports.monitoring.node_exporter;
+      };
     };
   };
 
@@ -376,7 +386,17 @@ in {
 
   installed.jellyfin.enable = true;
   services.postgresql.enable = true;
-  installed.immich.enable = true;
+  installed.immich = {
+    enable = true;
+    ports.web = config.my.ports.immich.web;
+  };
+
+  # Configure Go proxy for building Go packages
+  systemd.services.nix-daemon.environment = {
+    GOPROXY = "https://goproxy.cn,direct";
+    # Disable IPv6 for Go to avoid timeout issues
+    GODEBUG = "netdns=go";
+  };
 
   time.timeZone = "Asia/Shanghai";
   boot.tmp.cleanOnBoot = true;
@@ -478,14 +498,6 @@ in {
     ATTR{address}=="b0:41:6f:0c:c7:f7", NAME="eth0"
   '';
 
-  services.mimic = {
-    enable = true;
-    interfaces.eth0 = {
-      enable = true;
-      filters = wg.mimic-filters.${hostName};
-      xdpMode = "skb";
-    };
-  };
 
   programs.nix-ld = {
     enable = true;
