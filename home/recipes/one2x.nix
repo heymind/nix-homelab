@@ -68,6 +68,7 @@
       packages = with pkgs; [
        unstable.awscli2
        unstable.ssm-session-manager-plugin
+       unstable.gh
       ];
       
     };

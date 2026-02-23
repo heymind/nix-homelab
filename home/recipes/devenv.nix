@@ -5,6 +5,11 @@
       alejandra
     ];
   };
+  python = {pkgs,config,...}:{
+    home = {
+      packages = with pkgs; [python3 uv];
+    };
+  };
   nodejs = {
     pkgs,
     config,

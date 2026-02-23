@@ -13,7 +13,8 @@
       devenv-nix
       devenv-nodejs
       devenv-bun
-      devenv-clojure
+      devenv-clojure 
+      devenv-python
 
       hm-my
       hm-common
